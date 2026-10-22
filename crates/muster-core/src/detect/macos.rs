@@ -149,6 +149,26 @@ pub fn parse_info_plist(bytes: &[u8]) -> Option<InfoPlist> {
         left: PLIST_READ_BUDGET,
     };
     let value = plist::Value::from_reader(reader).ok()?;
+    let info = read_info(&value);
+    drop_flat(value);
+    info
+}
+
+/// Drops a parsed plist without recursion. Dropping a `plist::Value` recurses once per level,
+/// and a 240 KB binary plist can nest about 40,000 arrays deep, which overflows a 2 MiB
+/// thread stack (the scan runs on one).
+fn drop_flat(value: plist::Value) {
+    let mut pending = vec![value];
+    while let Some(value) = pending.pop() {
+        match value {
+            plist::Value::Array(items) => pending.extend(items),
+            plist::Value::Dictionary(dict) => pending.extend(dict.into_iter().map(|(_, v)| v)),
+            _ => {}
+        }
+    }
+}
+
+fn read_info(value: &plist::Value) -> Option<InfoPlist> {
     let dict = value.as_dictionary()?;
     let string = |key: &str| dict.get(key).and_then(plist::Value::as_string);
     let flag = |key: &str| match dict.get(key) {
@@ -229,6 +249,67 @@ mod tests {
         file.extend_from_slice(&0u64.to_be_bytes()); // top object
         file.extend_from_slice(&table.to_be_bytes());
         file
+    }
+
+    /// A binary plist whose dictionary holds a valid identifier and `depth` distinct arrays,
+    /// each holding only the next: deep nesting within the 256 KiB cap.
+    fn deep_chain(depth: u16) -> Vec<u8> {
+        fn ascii(s: &str) -> Vec<u8> {
+            let mut out = vec![0x5f, 0x10, u8::try_from(s.len()).unwrap()];
+            out.extend_from_slice(s.as_bytes());
+            out
+        }
+        let r = |i: u16| i.to_be_bytes();
+        let mut objects: Vec<Vec<u8>> = vec![
+            [
+                vec![0xd2],
+                r(1).to_vec(),
+                r(2).to_vec(),
+                r(3).to_vec(),
+                r(4).to_vec(),
+            ]
+            .concat(),
+            ascii("CFBundleIdentifier"),
+            vec![0x51, b'x'],
+            ascii("com.example.deep"),
+        ];
+        for i in 0..depth {
+            objects.push([vec![0xa1], r(5 + i + 1).to_vec()].concat());
+        }
+        objects.push(vec![0x10, 0]);
+        let mut file = b"bplist00".to_vec();
+        let mut offsets = Vec::new();
+        for object in &objects {
+            offsets.push(u32::try_from(file.len()).unwrap());
+            file.extend_from_slice(object);
+        }
+        let table = file.len() as u64;
+        for offset in offsets {
+            file.extend_from_slice(&offset.to_be_bytes()[1..]); // 3-byte offsets
+        }
+        file.extend_from_slice(&[0; 6]);
+        file.extend_from_slice(&[3, 2]);
+        file.extend_from_slice(&(objects.len() as u64).to_be_bytes());
+        file.extend_from_slice(&0u64.to_be_bytes());
+        file.extend_from_slice(&table.to_be_bytes());
+        file
+    }
+
+    #[test]
+    fn deep_nesting_does_not_overflow_the_scan_threads_stack() {
+        let bytes = deep_chain(40_000);
+        assert!(bytes.len() < 256 * 1024);
+        // The scan runs on a blocking-pool thread with a 2 MiB stack.
+        let info = std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || parse_info_plist(&bytes))
+            .unwrap()
+            .join()
+            .unwrap();
+        assert_eq!(
+            info.unwrap().identifier.as_deref(),
+            Some("com.example.deep")
+        );
     }
 
     #[test]
