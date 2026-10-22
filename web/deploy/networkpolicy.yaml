@@ -1,0 +1,17 @@
+# The site makes no outbound connections, so egress is denied entirely. Ingress is limited to
+# the ingress controller's namespace (adjust the label to match yours).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: muster-web
+spec:
+  podSelector:
+    matchLabels: { app.kubernetes.io/name: muster-web }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: { kubernetes.io/metadata.name: ingress-nginx }
+      ports:
+        - { port: 8080, protocol: TCP }
+  egress: []

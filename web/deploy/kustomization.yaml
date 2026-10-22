@@ -1,0 +1,14 @@
+# Example manifests for running the site on Kubernetes. Adjust the marked values, then:
+#   kubectl apply -k web/deploy
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: muster
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - networkpolicy.yaml
+images:
+  - name: ghcr.io/vainnor/muster-web
+    newTag: main # Pin to a digest or release tag in production.

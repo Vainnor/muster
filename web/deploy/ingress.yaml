@@ -1,0 +1,20 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: muster-web
+  annotations:
+    # Assumes cert-manager with a ClusterIssuer of this name. Adjust to your cluster.
+    cert-manager.io/cluster-issuer: letsencrypt
+spec:
+  ingressClassName: nginx # Adjust: the ingress class your cluster runs.
+  tls:
+    - hosts: [muster.vainnor.com]
+      secretName: muster-web-tls
+  rules:
+    - host: muster.vainnor.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: muster-web, port: { name: http } }
