@@ -38,6 +38,11 @@ pub const PRESETS: &[(&str, &str)] = &[
         include_str!("../../../themes/high-contrast.json"),
     ),
     ("vainnor", include_str!("../../../themes/vainnor.json")),
+    (
+        "vainnor-ember",
+        include_str!("../../../themes/vainnor-ember.json"),
+    ),
+    ("prism", include_str!("../../../themes/prism.json")),
 ];
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

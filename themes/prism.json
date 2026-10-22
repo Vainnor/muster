@@ -1,0 +1,27 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "prism",
+  "name": "Prism",
+  "description": "Prism: deep indigo grounds and pastel colors at one saturation and lightness, lilac accent.",
+  "mode": "dark",
+  "colors": {
+    "background": "#171023",
+    "surface": "#1e172c",
+    "border": "#4c3e65",
+    "text": "#e3deed",
+    "muted_text": "#a99fbc",
+    "accent": "#b4a3f5",
+    "accent_text": "#171023",
+    "danger": "#e39996",
+    "success": "#a6e396",
+    "warning": "#e3b596"
+  },
+  "radius": 2,
+  "density": "compact",
+  "font": "system-mono",
+  "icon_size": 24,
+  "layout": "list",
+  "motion": false,
+  "heading_case": "lowercase",
+  "wordmark": "^v█"
+}

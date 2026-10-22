@@ -6,13 +6,16 @@ properties named `--mu-*`, which every stylesheet in the desktop UI and the webs
 ## Presets
 
 `themes/*.json`, embedded into `muster-core` at compile time: `light`, `dark`, `nord`,
-`gruvbox`, `catppuccin`, `solarized` (Solarized Light), `high-contrast`, `vainnor`. "Follow
-system" is not a file: the UI picks `light` or `dark` from `prefers-color-scheme`. Every preset
-passes the contrast checks below; a test enforces it.
+`gruvbox`, `catppuccin`, `solarized` (Solarized Light), `high-contrast`, `vainnor`,
+`vainnor-ember`, `prism`. "Follow system" is not a file: the UI picks `light` or `dark` from
+`prefers-color-scheme`. Every preset passes the contrast checks below; a test enforces it.
 
 `vainnor` is the brand theme, "vainnor slate": blue-slate grounds (`#10141b` background, `#161b24`
 panels), cool text, the lilac accent `#b5a8f5`, rust orange `#e8803f` for warnings, a monospace
-font, lowercase headings and the `^v█` wordmark.
+font, lowercase headings and the `^v█` wordmark. `vainnor-ember` is the same theme on warm grey
+grounds (`#161412`, `#1f1c19`) with warm text. `prism` uses deep indigo grounds at hue 262
+(`#171023`, `#1e172c`) and pastel status colors that share one saturation (58 %) and lightness
+(74 %), with the lilac `#b4a3f5`. Both keep every text pair above 6:1.
 
 ## Format
 

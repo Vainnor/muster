@@ -1,0 +1,27 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "vainnor-ember",
+  "name": "Vainnor Ember",
+  "description": "Vainnor ember: warm grey grounds, warm text, lilac accent, rust orange for warnings.",
+  "mode": "dark",
+  "colors": {
+    "background": "#161412",
+    "surface": "#1f1c19",
+    "border": "#4f4740",
+    "text": "#e3dcd3",
+    "muted_text": "#a59c92",
+    "accent": "#b5a8f5",
+    "accent_text": "#161412",
+    "danger": "#e5675f",
+    "success": "#94c47d",
+    "warning": "#e8803f"
+  },
+  "radius": 2,
+  "density": "compact",
+  "font": "system-mono",
+  "icon_size": 24,
+  "layout": "list",
+  "motion": false,
+  "heading_case": "lowercase",
+  "wordmark": "^v█"
+}

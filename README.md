@@ -22,8 +22,8 @@ Planned:
 
 - Close a whole group again; a global hotkey per group; start on login (optional).
 - Themes: light, dark or follow your system, presets (Nord, Gruvbox, Catppuccin, Solarized,
-  High Contrast, Vainnor), and theme files you import or export, with a live preview and a
-  warning when text would be hard to read. A theme editor is planned.
+  High Contrast, Vainnor, Vainnor Ember, Prism), and theme files you import or export, with a
+  live preview and a warning when text would be hard to read. A theme editor is planned.
 - Private by default: no telemetry, no account, no network access unless you press "check for
   updates". See [PRIVACY.md](PRIVACY.md).
 - Light on resources: near-zero CPU when idle; closing the window frees the web view.
