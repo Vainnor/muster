@@ -7,11 +7,11 @@ import { Launcher } from "./components/Launcher";
 import { Settings } from "./components/Settings";
 import * as ipc from "./lib/ipc";
 import { applyTokens, resolveThemeId } from "./lib/theme";
-import type { AppInfo, AppView, GroupView, LaunchTarget, ThemeInfo } from "./lib/types";
+import type { AppInfo, AppView, CssVar, GroupView, LaunchTarget, ThemeInfo } from "./lib/types";
 
 const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
-function useTheme(setting: string | null): void {
+function useTheme(setting: string | null, preview: CssVar[] | null): void {
   const [prefersDark, setPrefersDark] = useState(darkQuery.matches);
 
   // An OS event, not a timer: fires only when the user changes their system theme.
@@ -22,12 +22,16 @@ function useTheme(setting: string | null): void {
   }, []);
 
   useEffect(() => {
+    if (preview !== null) {
+      applyTokens(document.documentElement.style, preview);
+      return;
+    }
     if (setting === null) return;
     ipc
       .themeTokens(resolveThemeId(setting, prefersDark))
       .then((vars) => applyTokens(document.documentElement.style, vars))
       .catch(() => undefined); // Base CSS keeps a readable fallback palette.
-  }, [setting, prefersDark]);
+  }, [setting, prefersDark, preview]);
 }
 
 type View = { name: "launcher" } | { name: "groups" } | { name: "edit"; group: GroupView | null } | { name: "add" } | { name: "apps" } | { name: "settings" };
@@ -51,7 +55,8 @@ export function App() {
   const [view, setView] = useState<View>({ name: "launcher" });
   const [status, setStatus] = useState<Status | null>(null);
   const [confirm, setConfirm] = useState<{ group: GroupView; entries: AppView[] } | null>(null);
-  useTheme(theme);
+  const [preview, setPreview] = useState<CssVar[] | null>(null);
+  useTheme(theme, preview);
 
   const fail = useCallback((e: unknown) => setStatus({ text: ipc.asCommandError(e).message, error: true }), []);
   const say = (text: string) => setStatus({ text, error: false });
@@ -270,7 +275,20 @@ export function App() {
 
       {view.name === "add" && <AddApp isMac={info?.os === "macos"} onAdd={addApp} onCancel={() => setView({ name: "apps" })} />}
 
-      {view.name === "settings" && <Settings themes={themes} theme={theme ?? "system"} onTheme={chooseTheme} onClose={home} />}
+      {view.name === "settings" && (
+        <Settings
+          themes={themes}
+          theme={theme ?? "system"}
+          onTheme={chooseTheme}
+          onPreview={setPreview}
+          onThemesChanged={() => ipc.listThemes().then(setThemes, fail)}
+          onError={fail}
+          onClose={() => {
+            setPreview(null);
+            home();
+          }}
+        />
+      )}
 
       {confirm && <ConfirmGroup groupName={confirm.group.name} entries={confirm.entries} onConfirm={() => void confirmAndRun()} onCancel={() => setConfirm(null)} />}
 

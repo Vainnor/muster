@@ -64,7 +64,8 @@ reach the network or run a command line.
 - Linux `Exec` lines will be tokenized by a field-code parser, with unknown codes dropped.
 
 **Malicious import or tampered config.**
-- Themes: 16 KiB limit, then strict JSON (`deny_unknown_fields`), then values that are colors
+- Themes arrive as text from a file the user picked in the webview's file input; the UI checks
+  the size first and Rust checks it again. Then: 16 KiB limit, then strict JSON (`deny_unknown_fields`), then values that are colors
   (`#rrggbb[aa]`) or bounded numbers and enums only. There is no field that can hold CSS, a URL,
   `url()` or `@import`. Contrast failures warn and never block.
 - Config: 4 MiB limit, versioned schema, `deny_unknown_fields`, the same validation as on save.

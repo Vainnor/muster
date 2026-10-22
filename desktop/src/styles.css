@@ -367,6 +367,32 @@ textarea.field {
   border-color: var(--mu-accent);
 }
 
+.theme__tag {
+  margin-left: auto;
+  color: var(--mu-muted);
+  font-size: var(--mu-text-xs);
+}
+
+.warning {
+  padding: var(--mu-space-2) var(--mu-space-3);
+  border: 1px solid var(--mu-warning, var(--mu-border));
+  border-radius: var(--mu-radius);
+}
+
+.warning p,
+.warning ul {
+  margin: var(--mu-space-1) 0;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* Confirmation */
 .dialog {
   max-width: 560px;

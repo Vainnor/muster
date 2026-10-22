@@ -84,4 +84,20 @@ export interface ThemeInfo {
   id: string;
   name: string;
   mode: "light" | "dark";
+  custom: boolean;
+}
+
+/** commands::ContrastWarning */
+export interface ContrastWarning {
+  foreground: string;
+  background: string;
+  ratio: number;
+  required: number;
+}
+
+/** commands::ThemePreview */
+export interface ThemePreview {
+  theme: ThemeInfo;
+  tokens: CssVar[];
+  warnings: ContrastWarning[];
 }

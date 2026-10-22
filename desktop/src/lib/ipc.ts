@@ -14,11 +14,16 @@ import type {
   Settings,
   StepFailure,
   ThemeInfo,
+  ThemePreview,
 } from "./types";
 
 export const appInfo = () => invoke<AppInfo>("app_info");
 export const listThemes = () => invoke<ThemeInfo[]>("list_themes");
 export const themeTokens = (id: string) => invoke<CssVar[]>("theme_tokens", { id });
+export const previewTheme = (json: string) => invoke<ThemePreview>("preview_theme", { json });
+export const importTheme = (json: string) => invoke<ThemePreview>("import_theme", { json });
+export const exportTheme = (id: string) => invoke<string>("export_theme", { id });
+export const deleteTheme = (id: string) => invoke<void>("delete_theme", { id });
 
 export const listApps = () => invoke<AppView[]>("list_apps");
 export const refreshApps = () => invoke<AppView[]>("refresh_apps");

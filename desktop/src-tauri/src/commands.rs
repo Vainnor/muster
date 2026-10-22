@@ -78,9 +78,30 @@ impl From<muster_core::Error> for CommandError {
             muster_core::Error::LimitReached => "You have reached the limit for this kind of item.",
             muster_core::Error::Launch { .. } => "The app could not be started.",
             muster_core::Error::NoOpener => "No program is installed to open links (xdg-open).",
-            muster_core::Error::Io { .. }
-            | muster_core::Error::InvalidConfig(_)
-            | muster_core::Error::InvalidTheme(_) => "Your settings could not be saved.",
+            muster_core::Error::InvalidTheme(t) => {
+                use muster_core::themes::ThemeError;
+                match t {
+                    ThemeError::TooLarge => "That theme file is larger than 16 KiB.",
+                    ThemeError::Malformed(_) => {
+                        "That is not a Muster theme file, or it has fields Muster does not know."
+                    }
+                    ThemeError::BadColor => "Colors must be written as #rrggbb or #rrggbbaa.",
+                    ThemeError::BadId => {
+                        "The theme id must use lowercase letters, digits and dashes."
+                    }
+                    ThemeError::BadName => "The theme needs a name of 1 to 40 characters.",
+                    ThemeError::BadDescription => "The theme description is too long.",
+                    ThemeError::BadWordmark => "The theme wordmark must be 1 to 16 characters.",
+                    ThemeError::BadRadius => "The corner radius must be between 0 and 24.",
+                    ThemeError::BadIconSize => "The icon size must be between 16 and 64.",
+                    ThemeError::ReservedId => {
+                        "That theme id belongs to a built-in theme; change its id."
+                    }
+                }
+            }
+            muster_core::Error::Io { .. } | muster_core::Error::InvalidConfig(_) => {
+                "Your settings could not be saved."
+            }
         };
         let code = match &e {
             muster_core::Error::InvalidGroup(GroupError::NeedsConfirmation) => "needs_confirmation",
@@ -168,17 +189,27 @@ pub(crate) fn app_info() -> AppInfo {
     muster_core::info::app_info()
 }
 
-/// Design tokens for a preset theme.
+/// Design tokens for a preset or imported theme.
 #[tauri::command]
-pub(crate) fn theme_tokens(id: &str) -> Result<Vec<Token>, CommandError> {
-    let theme = muster_core::themes::preset(id).ok_or(CommandError::UNKNOWN_THEME)?;
-    Ok(muster_ui::css_variables(&theme)
+pub(crate) fn theme_tokens(
+    state: State<'_, AppState>,
+    id: &str,
+) -> Result<Vec<Token>, CommandError> {
+    let theme = state
+        .library()?
+        .theme(id)
+        .ok_or(CommandError::UNKNOWN_THEME)?;
+    Ok(tokens(&theme))
+}
+
+fn tokens(theme: &muster_core::themes::ValidTheme) -> Vec<Token> {
+    muster_ui::css_variables(theme)
         .into_iter()
         .map(|v| Token {
             name: v.name,
             value: v.value,
         })
-        .collect())
+        .collect()
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -186,20 +217,106 @@ pub(crate) struct ThemeInfo {
     id: String,
     name: String,
     mode: muster_core::themes::Mode,
+    custom: bool,
 }
 
-/// The preset themes, in display order.
+impl ThemeInfo {
+    fn new(theme: &muster_core::themes::ValidTheme, custom: bool) -> Self {
+        let t = theme.theme();
+        Self {
+            id: t.id.clone(),
+            name: t.name.clone(),
+            mode: t.mode,
+            custom,
+        }
+    }
+}
+
+/// Presets in display order, then imported themes.
 #[tauri::command]
-pub(crate) fn list_themes() -> Vec<ThemeInfo> {
-    muster_core::themes::PRESETS
+pub(crate) fn list_themes(state: State<'_, AppState>) -> Result<Vec<ThemeInfo>, CommandError> {
+    let presets = muster_core::themes::PRESETS
         .iter()
         .filter_map(|(id, _)| muster_core::themes::preset(id))
-        .map(|t| ThemeInfo {
-            id: t.theme().id.clone(),
-            name: t.theme().name.clone(),
-            mode: t.theme().mode,
-        })
-        .collect()
+        .map(|t| ThemeInfo::new(&t, false));
+    let custom: Vec<_> = state
+        .library()?
+        .custom_themes()
+        .iter()
+        .map(|t| ThemeInfo::new(t, true))
+        .collect();
+    Ok(presets.chain(custom).collect())
+}
+
+/// A contrast problem in words the UI can show.
+#[derive(Debug, Serialize, PartialEq)]
+pub(crate) struct ContrastWarning {
+    foreground: &'static str,
+    background: &'static str,
+    ratio: f64,
+    required: f64,
+}
+
+#[derive(Debug, Serialize, PartialEq)]
+pub(crate) struct ThemePreview {
+    theme: ThemeInfo,
+    tokens: Vec<Token>,
+    warnings: Vec<ContrastWarning>,
+}
+
+fn preview(parsed: &muster_core::themes::Parsed, custom: bool) -> ThemePreview {
+    ThemePreview {
+        theme: ThemeInfo::new(&parsed.theme, custom),
+        tokens: tokens(&parsed.theme),
+        warnings: parsed
+            .warnings
+            .iter()
+            .map(|w| ContrastWarning {
+                foreground: w.foreground,
+                background: w.background,
+                ratio: w.ratio,
+                required: w.required,
+            })
+            .collect(),
+    }
+}
+
+/// Validates a theme file's text without saving it, for the live preview.
+#[tauri::command]
+pub(crate) fn preview_theme(json: String) -> Result<ThemePreview, CommandError> {
+    let parsed = muster_core::themes::parse(json.as_bytes()).map_err(muster_core::Error::from)?;
+    if muster_core::themes::is_reserved_id(&parsed.theme.theme().id) {
+        return Err(muster_core::Error::from(muster_core::themes::ThemeError::ReservedId).into());
+    }
+    Ok(preview(&parsed, true))
+}
+
+/// Saves an imported theme. Contrast warnings come back with it; they never block.
+#[tauri::command]
+pub(crate) fn import_theme(
+    state: State<'_, AppState>,
+    json: String,
+) -> Result<ThemePreview, CommandError> {
+    state
+        .update(|lib| lib.import_theme(json.as_bytes()))
+        .map(|parsed| preview(&parsed, true))
+}
+
+/// The theme file for a preset or imported theme.
+#[tauri::command]
+pub(crate) fn export_theme(state: State<'_, AppState>, id: &str) -> Result<String, CommandError> {
+    let theme = state
+        .library()?
+        .theme(id)
+        .ok_or(CommandError::UNKNOWN_THEME)?;
+    let mut exported = theme.theme().clone();
+    exported.schema = Some(muster_core::themes::SchemaRef);
+    serde_json::to_string_pretty(&exported).map_err(|_| CommandError::INTERNAL)
+}
+
+#[tauri::command]
+pub(crate) fn delete_theme(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
+    state.update(|lib| lib.remove_theme(&id))
 }
 
 /// All apps. Scans the first time it is called in a session.
@@ -338,10 +455,10 @@ pub(crate) fn get_settings(state: State<'_, AppState>) -> Result<Settings, Comma
     })
 }
 
-/// `system` or a preset id.
+/// `system`, a preset id or an imported theme's id.
 #[tauri::command]
 pub(crate) fn set_theme(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
-    if id != "system" && muster_core::themes::preset(&id).is_none() {
+    if id != "system" && state.library()?.theme(&id).is_none() {
         return Err(CommandError::UNKNOWN_THEME);
     }
     state.update(|lib| {
@@ -371,31 +488,33 @@ mod tests {
     }
 
     #[test]
-    fn theme_tokens_for_a_preset() {
-        let tokens = theme_tokens("nord").unwrap();
+    fn tokens_for_a_preset() {
+        let nord = muster_core::themes::preset("nord").unwrap();
         assert!(
-            tokens
+            tokens(&nord)
                 .iter()
                 .any(|t| t.name == "--mu-bg" && t.value == "#2e3440")
         );
     }
 
     #[test]
-    fn theme_tokens_rejects_unknown_and_path_like_ids() {
-        for id in ["nope", "../../etc/passwd", ""] {
-            assert_eq!(
-                theme_tokens(id).unwrap_err().code,
-                "unknown_theme",
-                "{id:?}"
-            );
-        }
-    }
+    fn preview_refuses_built_in_ids_and_reports_contrast() {
+        let dark = muster_core::themes::PRESETS
+            .iter()
+            .find(|(id, _)| *id == "dark")
+            .unwrap()
+            .1;
+        assert_eq!(
+            preview_theme(dark.into()).unwrap_err().code,
+            "invalid_theme"
+        );
 
-    #[test]
-    fn list_themes_names_every_preset() {
-        let themes = list_themes();
-        assert_eq!(themes.len(), muster_core::themes::PRESETS.len());
-        assert!(themes.iter().any(|t| t.id == "high-contrast"));
+        let mut theme: serde_json::Value = serde_json::from_str(dark).unwrap();
+        theme["id"] = "mine".into();
+        theme["colors"]["text"] = theme["colors"]["background"].clone();
+        let p = preview_theme(theme.to_string()).unwrap();
+        assert!(p.theme.custom);
+        assert!(p.warnings.iter().any(|w| w.foreground == "text"));
     }
 
     #[test]

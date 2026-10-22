@@ -2482,6 +2482,7 @@ dependencies = [
  "muster-core",
  "muster-ui",
  "serde",
+ "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-autostart",

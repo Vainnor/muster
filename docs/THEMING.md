@@ -62,6 +62,19 @@ forces `--mu-duration: 0ms`. Fonts are system stacks only; nothing is downloaded
 On the website, `web/styles.css` maps Topcoat UI's variable names (`--background`, `--primary`,
 …) onto these tokens.
 
+## Import and export
+
+Settings → Import a theme file reads a `.json` file the user picks (through the webview's file
+input; Muster has no filesystem permission) and sends its text to `preview_theme`, which runs
+`themes::parse` and returns the tokens and contrast warnings without saving. The window shows the
+theme live; Import saves it into `config.json` under `themes`, Cancel restores the chosen theme.
+
+- An imported theme with the same `id` as an earlier import replaces it. The ids of presets and
+  `system` are refused (`ThemeError::ReservedId`); change the `id` to import a variant.
+- At most 64 imported themes. Each is validated again every time the config loads.
+- Export shows a theme as JSON (with `$schema`) to copy and save. Deleting the theme in use
+  switches to "follow system".
+
 ## Adding a field or token
 
 Change, in one commit: the Rust type and validator, `theme.schema.json`, every preset,
