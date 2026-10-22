@@ -10,8 +10,9 @@ properties named `--mu-*`, which every stylesheet in the desktop UI and the webs
 system" is not a file: the UI picks `light` or `dark` from `prefers-color-scheme`. Every preset
 passes the contrast checks below; a test enforces it.
 
-`vainnor` is provisional: a retro-terminal dark theme with a monospace font, lowercase headings,
-a lilac accent and the `^v█` wordmark. Its palette has not been confirmed by the brand owner.
+`vainnor` is the brand theme, "vainnor slate": blue-slate grounds (`#10141b` background, `#161b24`
+panels), cool text, the lilac accent `#b5a8f5`, rust orange `#e8803f` for warnings, a monospace
+font, lowercase headings and the `^v█` wordmark.
 
 ## Format
 
