@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Rejects AI attribution and non-conventional subjects. Enable once per clone:
+#   git config core.hooksPath .githooks
+set -euo pipefail
+
+msg_file="$1"
+# Drop comment lines git adds in the editor, and text inside `code spans` (prose quoting a form).
+body="$(grep -v '^#' "$msg_file" | sed -E 's/`[^`]*`//g')"
+
+if grep -qiE 'co-authored-by:[[:space:]]*claude|noreply@anthropic\.com|generated (with|by) \[?claude|claude\.ai/code/session|^[^[:alnum:]]*drafted (by|with) claude' <<<"$body"; then
+    echo "commit-msg: the message carries AI attribution; commits are authored solely as the user." >&2
+    exit 1
+fi
+
+subject="$(head -n1 <<<"$body")"
+if [[ "$subject" =~ ^(Merge|Revert) ]]; then
+    exit 0
+fi
+if ! [[ "$subject" =~ ^(feat|fix|refactor|perf|test|docs|build|ci|chore|security)(\([a-z0-9-]+\))?!?:\ .+ ]]; then
+    echo "commit-msg: subject must be 'type(scope): summary' (.claude/rules/git-and-ci.md):" >&2
+    echo "  $subject" >&2
+    exit 1
+fi
+if (( ${#subject} > 72 )); then
+    echo "commit-msg: subject is ${#subject} characters; keep it to 72." >&2
+    exit 1
+fi
