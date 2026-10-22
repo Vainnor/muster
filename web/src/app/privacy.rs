@@ -38,7 +38,8 @@ pub(crate) async fn page() -> Result<impl View> {
                     "It works without an internet connection. The only request it can make is to check GitHub for a newer version, and only when you ask it to, or after you switch that check on."
                 </li>
                 <li>
-                    "Your apps, groups, themes and settings are saved in a file on your own computer. They are never uploaded."
+                    "Your apps, groups, themes, settings and the programs you approved to run are saved in a \
+                     file on your own computer. They are never uploaded."
                 </li>
                 <li>
                     "To find installed apps, Muster reads app names, icons and launch commands from the standard app folders. It does not read your documents, recent files or browser data."

@@ -23,8 +23,6 @@
     "allow-list-groups",
     "allow-save-group",
     "allow-delete-group",
-    "allow-group-confirmation",
-    "allow-confirm-group",
     "allow-run-group",
     "allow-get-settings",
     "allow-set-theme",

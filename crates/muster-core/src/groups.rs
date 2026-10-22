@@ -4,6 +4,10 @@
 //! override its arguments and working directory and add a delay before it starts.
 //! [`plan_group`] turns a group into launch steps; the shell runs them in order, sleeping for
 //! each delay, and one failed entry does not stop the rest.
+//!
+//! An entry that runs a manually added app, or that overrides an app's arguments or working
+//! directory, runs only once the user has approved its exact target ([`unapproved`]). The
+//! shell asks in a native dialog; the webview cannot approve anything.
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -24,6 +28,7 @@ pub const MAX_DELAY_MS: u32 = 60_000;
 pub struct GroupId(pub String);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Group {
     pub id: GroupId,
     pub name: String,
@@ -32,9 +37,6 @@ pub struct Group {
     /// Global shortcut, for example `CmdOrCtrl+Alt+1`. Registered by the shell.
     #[serde(default)]
     pub hotkey: Option<String>,
-    /// Set once the user has confirmed a group that contains manually added entries.
-    #[serde(default)]
-    pub confirmed: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,7 +67,7 @@ pub enum GroupError {
     BadArguments,
     #[error("an entry's working directory must be an absolute path without `..`")]
     BadWorkingDir,
-    #[error("group runs a manually added entry and has not been confirmed")]
+    #[error("group runs a target the user has not approved")]
     NeedsConfirmation,
 }
 
@@ -79,11 +81,15 @@ pub struct Step {
     pub plan: Result<LaunchPlan, TargetError>,
 }
 
-/// Plans a run of `group`. Fails as a whole if the group is invalid or still needs the
-/// first-run confirmation; individual targets that fail validation become failed steps.
-pub fn plan_group(group: &Group, apps: &[AppEntry]) -> Result<Vec<Step>, GroupError> {
+/// Plans a run of `group`. Fails as a whole if the group is invalid or runs a target that is
+/// not in `approved`; individual targets that fail validation become failed steps.
+pub fn plan_group(
+    group: &Group,
+    apps: &[AppEntry],
+    approved: &[LaunchTarget],
+) -> Result<Vec<Step>, GroupError> {
     group.validate(apps)?;
-    if group.needs_confirmation(apps) {
+    if !unapproved(group, apps, approved).is_empty() {
         return Err(GroupError::NeedsConfirmation);
     }
     let by_id: HashMap<&AppId, &AppEntry> = apps.iter().map(|a| (&a.id, a)).collect();
@@ -103,7 +109,40 @@ pub fn plan_group(group: &Group, apps: &[AppEntry]) -> Result<Vec<Step>, GroupEr
         .collect()
 }
 
+/// The targets of `group` that need the user's approval and do not have it yet, in launch
+/// order without repeats. These are exactly what the group would run for those entries,
+/// overrides applied.
+#[must_use]
+pub fn unapproved(
+    group: &Group,
+    apps: &[AppEntry],
+    approved: &[LaunchTarget],
+) -> Vec<LaunchTarget> {
+    let by_id: HashMap<&AppId, &AppEntry> = apps.iter().map(|a| (&a.id, a)).collect();
+    let mut out: Vec<LaunchTarget> = Vec::new();
+    for entry in &group.entries {
+        let Some(app) = by_id.get(&entry.app) else {
+            continue;
+        };
+        if !entry.needs_approval(app) {
+            continue;
+        }
+        let target = entry.target_for(&app.target);
+        if !approved.contains(&target) && !out.contains(&target) {
+            out.push(target);
+        }
+    }
+    out
+}
+
 impl GroupEntry {
+    /// A manually added app, or any override of a detected app's arguments or folder, can run
+    /// an arbitrary command line, so the user approves it first.
+    #[must_use]
+    pub fn needs_approval(&self, app: &AppEntry) -> bool {
+        app.source == Source::Manual || self.args.is_some() || self.cwd.is_some()
+    }
+
     /// The app's target with this entry's overrides. Only programs take arguments and a
     /// working directory; overrides on a bundle or URL entry are ignored.
     #[must_use]
@@ -157,20 +196,6 @@ impl Group {
         }
         Ok(())
     }
-
-    /// True when the group must be confirmed before it runs: it contains a manually added
-    /// entry and the user has not confirmed it yet.
-    #[must_use]
-    pub fn needs_confirmation(&self, apps: &[AppEntry]) -> bool {
-        if self.confirmed {
-            return false;
-        }
-        let by_id: HashMap<&AppId, &AppEntry> = apps.iter().map(|a| (&a.id, a)).collect();
-        self.entries
-            .iter()
-            .filter_map(|e| by_id.get(&e.app))
-            .any(|a| a.source == Source::Manual)
-    }
 }
 
 #[cfg(test)]
@@ -204,7 +229,6 @@ mod tests {
             name: "Work".into(),
             entries,
             hotkey: None,
-            confirmed: false,
         }
     }
 
@@ -246,16 +270,45 @@ mod tests {
     }
 
     #[test]
-    fn manual_entry_needs_confirmation_until_confirmed() {
+    fn manual_entries_and_overrides_need_approval_of_their_exact_target() {
         let apps = [
             app("editor", Source::Detected),
             app("script", Source::Manual),
         ];
-        assert!(!group(vec![entry("editor")]).needs_confirmation(&apps));
-        let mut g = group(vec![entry("editor"), entry("script")]);
-        assert!(g.needs_confirmation(&apps));
-        g.confirmed = true;
-        assert!(!g.needs_confirmation(&apps));
+        assert!(unapproved(&group(vec![entry("editor")]), &apps, &[]).is_empty());
+
+        let g = group(vec![entry("script"), entry("script")]);
+        let pending = unapproved(&g, &apps, &[]);
+        assert_eq!(pending, vec![apps[1].target.clone()], "listed once");
+        assert!(unapproved(&g, &apps, &pending).is_empty());
+
+        let mut overridden = entry("editor");
+        overridden.cwd = Some(PathBuf::from("/tmp"));
+        assert_eq!(unapproved(&group(vec![overridden]), &apps, &[]).len(), 1);
+    }
+
+    #[test]
+    fn approval_covers_the_overridden_command_line_not_the_base() {
+        let dir = tempfile::tempdir().unwrap();
+        let sh = dir.path().join("sh");
+        std::fs::write(&sh, "").unwrap();
+        let apps = [program_app("sh", &sh, Source::Detected)];
+        let mut e = entry("sh");
+        e.args = Some(vec!["-c".into(), "id".into()]);
+        let g = group(vec![e.clone()]);
+        let approved = unapproved(&g, &apps, &[]);
+        assert!(
+            matches!(&approved[0], LaunchTarget::Program { args, .. } if args == &["-c", "id"]),
+            "the approval shows the override"
+        );
+        assert!(plan_group(&g, &apps, &approved).is_ok());
+
+        e.args = Some(vec!["-c".into(), "echo other".into()]);
+        let changed = group(vec![e]);
+        assert_eq!(
+            plan_group(&changed, &apps, &approved),
+            Err(GroupError::NeedsConfirmation)
+        );
     }
 
     fn program_app(id: &str, path: &std::path::Path, source: Source) -> AppEntry {
@@ -287,7 +340,9 @@ mod tests {
         second.delay_ms = 1500;
         second.args = Some(vec!["ignored".into()]);
 
-        let steps = plan_group(&group(vec![first, second, entry("a")]), &apps).unwrap();
+        let g = group(vec![first, second, entry("a")]);
+        let approved = unapproved(&g, &apps, &[]);
+        let steps = plan_group(&g, &apps, &approved).unwrap();
         assert_eq!(steps.len(), 3);
         assert_eq!(
             steps[0].plan,
@@ -341,17 +396,19 @@ mod tests {
             program_app("gone", &dir.path().join("gone"), Source::Detected),
             app("web", Source::Detected),
         ];
-        let steps = plan_group(&group(vec![entry("gone"), entry("web")]), &apps).unwrap();
+        let steps = plan_group(&group(vec![entry("gone"), entry("web")]), &apps, &[]).unwrap();
         assert_eq!(steps[0].plan, Err(TargetError::NotFound));
         assert!(steps[1].plan.is_ok());
     }
 
     #[test]
-    fn plan_refuses_an_unconfirmed_group_with_a_manual_entry() {
+    fn plan_refuses_an_unapproved_manual_entry() {
         let apps = [app("script", Source::Manual)];
-        let mut g = group(vec![entry("script")]);
-        assert_eq!(plan_group(&g, &apps), Err(GroupError::NeedsConfirmation));
-        g.confirmed = true;
-        assert!(plan_group(&g, &apps).is_ok());
+        let g = group(vec![entry("script")]);
+        assert_eq!(
+            plan_group(&g, &apps, &[]),
+            Err(GroupError::NeedsConfirmation)
+        );
+        assert!(plan_group(&g, &apps, &[apps[0].target.clone()]).is_ok());
     }
 }

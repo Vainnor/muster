@@ -6,12 +6,18 @@
 //! pins a copy of each detected app it references into the config, so the group still loads
 //! if the app is uninstalled or detection changes. A fresh scan replaces the pinned copy's
 //! target in the listing.
+//!
+//! Approvals: a manual app, or a group entry that is manual or overrides arguments or folder,
+//! runs only if its exact target is in `config.approved`. Planning such a run fails with
+//! [`Error::NeedsApproval`]; the shell shows [`Library::pending_for_app`] or
+//! [`Library::pending_for_group`] in a native dialog and calls [`Library::approve`] on OK.
+//! Approvals nothing can produce any more are dropped on every change.
 
 use std::collections::{HashMap, HashSet};
 
 use crate::detect::{DetectedApp, Scan};
 use crate::groups::{self, Group, GroupEntry, GroupError, GroupId, Step};
-use crate::launch::LaunchTarget;
+use crate::launch::{LaunchPlan, LaunchTarget};
 use crate::model::{AppEntry, AppId, Source};
 use crate::store::Config;
 use crate::themes::{self, Parsed, ThemeError, ValidTheme};
@@ -22,6 +28,8 @@ pub const MAX_MANUAL_APPS: usize = 1_024;
 pub const MAX_GROUPS: usize = 256;
 pub const MAX_APP_NAME_LEN: usize = 128;
 pub const MAX_THEMES: usize = 64;
+/// Every manual app plus every group entry, each approved once.
+pub const MAX_APPROVED: usize = MAX_MANUAL_APPS + MAX_GROUPS * groups::MAX_GROUP_ENTRIES;
 
 const DETECTED: &str = "d:";
 const MANUAL: &str = "m:";
@@ -135,11 +143,12 @@ impl Library {
         for group in &mut self.config.groups {
             group.entries.retain(|e| e.app != *id);
         }
+        self.prune_approved();
         Ok(())
     }
 
-    /// Creates or replaces a group. A group that was confirmed stays confirmed only if it gains
-    /// no manual entry it did not already have.
+    /// Creates or replaces a group. Approvals belong to targets, not groups, so an entry whose
+    /// command line changes needs approving again.
     pub fn save_group(&mut self, draft: GroupDraft) -> Result<GroupId> {
         let name = clean(&draft.name, groups::MAX_GROUP_NAME_LEN)
             .ok_or(Error::InvalidGroup(GroupError::BadName))?;
@@ -154,25 +163,11 @@ impl Library {
             let taken: HashSet<&str> = self.config.groups.iter().map(|g| g.id.0.as_str()).collect();
             GroupId(unique_id(GROUP, &name, &taken))
         };
-        let manual_in = |entries: &[GroupEntry]| -> HashSet<AppId> {
-            entries
-                .iter()
-                .filter(|e| {
-                    self.find(&e.app)
-                        .is_some_and(|a| a.source == Source::Manual)
-                })
-                .map(|e| e.app.clone())
-                .collect()
-        };
-        let confirmed = existing.as_ref().is_some_and(|old| {
-            old.confirmed && manual_in(&draft.entries).is_subset(&manual_in(&old.entries))
-        });
         let group = Group {
             id: id.clone(),
             name,
             entries: draft.entries,
             hotkey: existing.and_then(|g| g.hotkey),
-            confirmed,
         };
 
         let mut next = self.config.clone();
@@ -186,6 +181,7 @@ impl Library {
             .ok_or(Error::UnknownId)?;
         group.validate(&next.apps)?;
         self.config = next;
+        self.prune_approved();
         Ok(id)
     }
 
@@ -198,19 +194,55 @@ impl Library {
         let mut next = self.config.clone();
         self.pin_detected(&mut next);
         self.config = next;
+        self.prune_approved();
         Ok(())
     }
 
-    /// Records the user's confirmation of a group's manual entries.
-    pub fn confirm_group(&mut self, id: &GroupId) -> Result<()> {
-        let group = self
-            .config
-            .groups
-            .iter_mut()
-            .find(|g| g.id == *id)
-            .ok_or(Error::UnknownId)?;
-        group.confirmed = true;
+    /// What launching app `id` would run that the user has not approved: its target if it was
+    /// added by hand and not approved, otherwise nothing.
+    pub fn pending_for_app(&self, id: &AppId) -> Result<Vec<LaunchTarget>> {
+        let app = self.find(id).ok_or(Error::UnknownId)?;
+        let pending = app.source == Source::Manual && !self.config.approved.contains(&app.target);
+        Ok(if pending {
+            vec![app.target]
+        } else {
+            Vec::new()
+        })
+    }
+
+    /// The exact targets group `id` would run that need approval and do not have it.
+    pub fn pending_for_group(&self, id: &GroupId) -> Result<Vec<LaunchTarget>> {
+        let group = self.group(id).ok_or(Error::UnknownId)?;
+        Ok(groups::unapproved(
+            group,
+            &self.apps(),
+            &self.config.approved,
+        ))
+    }
+
+    /// Records that the user approved `targets`. Only the shell calls this, after the user
+    /// pressed OK in a native dialog that listed them; targets no app or group can run are
+    /// ignored.
+    pub fn approve(&mut self, targets: &[LaunchTarget]) -> Result<()> {
+        for target in targets {
+            if !self.config.approved.contains(target) {
+                self.config.approved.push(target.clone());
+            }
+        }
+        self.prune_approved();
+        if self.config.approved.len() > MAX_APPROVED {
+            return Err(Error::LimitReached);
+        }
         Ok(())
+    }
+
+    /// Plans launching one app. A manual app must be approved first.
+    pub fn plan_app(&self, id: &AppId) -> Result<LaunchPlan> {
+        if !self.pending_for_app(id)?.is_empty() {
+            return Err(Error::NeedsApproval);
+        }
+        let app = self.find(id).ok_or(Error::UnknownId)?;
+        Ok(crate::launch::plan(&app.target)?)
     }
 
     #[must_use]
@@ -218,25 +250,13 @@ impl Library {
         self.config.groups.iter().find(|g| g.id == *id)
     }
 
-    /// The manual apps in a group, which the confirmation shows in full.
-    #[must_use]
-    pub fn manual_entries(&self, id: &GroupId) -> Vec<AppEntry> {
-        let Some(group) = self.group(id) else {
-            return Vec::new();
-        };
-        let mut seen = HashSet::new();
-        group
-            .entries
-            .iter()
-            .filter_map(|e| self.find(&e.app))
-            .filter(|a| a.source == Source::Manual && seen.insert(a.id.clone()))
-            .collect()
-    }
-
     /// Plans a run of a group, using the freshest target for each app.
     pub fn plan_run(&self, id: &GroupId) -> Result<Vec<Step>> {
         let group = self.group(id).ok_or(Error::UnknownId)?;
-        Ok(groups::plan_group(group, &self.apps())?)
+        match groups::plan_group(group, &self.apps(), &self.config.approved) {
+            Err(GroupError::NeedsConfirmation) => Err(Error::NeedsApproval),
+            other => Ok(other?),
+        }
     }
 
     /// A preset or imported theme by id.
@@ -299,6 +319,25 @@ impl Library {
             self.config.settings.theme = "system".into();
         }
         Ok(())
+    }
+
+    /// Drops approvals that no manual app or approval-needing group entry would run.
+    fn prune_approved(&mut self) {
+        let apps = self.apps();
+        let by_id: HashMap<&AppId, &AppEntry> = apps.iter().map(|a| (&a.id, a)).collect();
+        let mut live: HashSet<LaunchTarget> = apps
+            .iter()
+            .filter(|a| a.source == Source::Manual)
+            .map(|a| a.target.clone())
+            .collect();
+        for entry in self.config.groups.iter().flat_map(|g| &g.entries) {
+            if let Some(app) = by_id.get(&entry.app)
+                && entry.needs_approval(app)
+            {
+                live.insert(entry.target_for(&app.target));
+            }
+        }
+        self.config.approved.retain(|t| live.contains(t));
     }
 
     /// Keeps exactly the detected apps that groups reference in `config.apps`, refreshed from
@@ -513,7 +552,7 @@ mod tests {
     }
 
     #[test]
-    fn adding_a_new_manual_entry_requires_confirmation_again() {
+    fn manual_apps_and_groups_run_only_after_their_targets_are_approved() {
         let mut lib = Library::new(Config::default());
         lib.set_detected(&scan(&[("editor", "Editor")]));
         let a = lib
@@ -522,24 +561,82 @@ mod tests {
         let b = lib
             .add_manual("Script B", url("https://b.example"))
             .unwrap();
-        let id = lib.save_group(draft(None, "Work", &[&a.0])).unwrap();
+        assert!(matches!(lib.plan_app(&a), Err(Error::NeedsApproval)));
+        assert!(
+            lib.pending_for_app(&AppId("d:editor".into()))
+                .unwrap()
+                .is_empty()
+        );
 
-        assert!(matches!(
-            lib.plan_run(&id),
-            Err(Error::InvalidGroup(GroupError::NeedsConfirmation))
-        ));
-        assert_eq!(lib.manual_entries(&id).len(), 1);
-        lib.confirm_group(&id).unwrap();
-        assert!(lib.plan_run(&id).is_ok());
-
-        // Reordering or adding a detected app keeps the confirmation.
-        lib.save_group(draft(Some(&id), "Work", &["d:editor", &a.0]))
+        let id = lib
+            .save_group(draft(None, "Work", &["d:editor", &a.0]))
             .unwrap();
-        assert!(lib.group(&id).unwrap().confirmed);
-        // A manual entry the user has not confirmed clears it.
+        assert!(matches!(lib.plan_run(&id), Err(Error::NeedsApproval)));
+        let pending = lib.pending_for_group(&id).unwrap();
+        assert_eq!(pending, vec![url("https://a.example")]);
+        lib.approve(&pending).unwrap();
+        assert!(lib.plan_run(&id).is_ok());
+        assert!(lib.plan_app(&a).is_ok(), "the same target, approved once");
+
+        // Reordering keeps the approval; a new manual entry needs its own.
+        lib.save_group(draft(Some(&id), "Work", &[&a.0, "d:editor"]))
+            .unwrap();
+        assert!(lib.plan_run(&id).is_ok());
         lib.save_group(draft(Some(&id), "Work", &[&a.0, &b.0]))
             .unwrap();
-        assert!(!lib.group(&id).unwrap().confirmed);
+        assert_eq!(
+            lib.pending_for_group(&id).unwrap(),
+            vec![url("https://b.example")]
+        );
+    }
+
+    #[test]
+    fn approvals_nothing_can_run_are_dropped() {
+        let mut lib = Library::new(Config::default());
+        let a = lib.add_manual("A", url("https://a.example")).unwrap();
+        lib.approve(&lib.pending_for_app(&a).unwrap()).unwrap();
+        lib.approve(&[url("https://never.example")]).unwrap();
+        assert_eq!(lib.config().approved, vec![url("https://a.example")]);
+        lib.remove_manual(&a).unwrap();
+        assert!(lib.config().approved.is_empty());
+    }
+
+    #[test]
+    fn changing_an_override_needs_approval_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let sh = dir.path().join("sh");
+        std::fs::write(&sh, "").unwrap();
+        let mut lib = Library::new(Config::default());
+        lib.set_detected(&Scan {
+            apps: vec![DetectedApp {
+                key: "sh".into(),
+                name: "Shell".into(),
+                target: LaunchTarget::Program {
+                    path: sh,
+                    args: vec![],
+                    cwd: None,
+                },
+                icon: None,
+            }],
+            skipped: 0,
+        });
+        let with_args = |args: &[&str]| GroupDraft {
+            id: None,
+            name: "G".into(),
+            entries: vec![GroupEntry {
+                args: Some(args.iter().map(|s| (*s).into()).collect()),
+                ..entry("d:sh")
+            }],
+        };
+        let id = lib.save_group(with_args(&["-c", "id"])).unwrap();
+        lib.approve(&lib.pending_for_group(&id).unwrap()).unwrap();
+        assert!(lib.plan_run(&id).is_ok());
+        lib.save_group(GroupDraft {
+            id: Some(id.clone()),
+            ..with_args(&["-c", "echo other"])
+        })
+        .unwrap();
+        assert!(matches!(lib.plan_run(&id), Err(Error::NeedsApproval)));
     }
 
     #[test]

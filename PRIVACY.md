@@ -13,18 +13,19 @@ This is the technical privacy statement for the Muster desktop app and website. 
   [docs/RELEASING.md](docs/RELEASING.md).)*
 - **Local storage only.** Your apps, groups, settings and themes are stored in your OS's
   app-config folder:
-  - Linux: `$XDG_CONFIG_HOME/muster` (usually `~/.config/muster`)
+  - Linux: `$XDG_CONFIG_HOME/com.vainnor.muster` (usually `~/.config/com.vainnor.muster`)
   - macOS: `~/Library/Application Support/com.vainnor.muster`
-  - Windows: `%APPDATA%\Vainnor\Muster`
+  - Windows: `%APPDATA%\com.vainnor.muster`
   The file holds the apps you added by hand, your groups, a copy of each detected app a group
-  uses (name and launch command), and your settings. Nothing is uploaded. No passwords, tokens
+  uses (name and launch command), the command lines you approved to run, and your settings. Nothing is uploaded. No passwords, tokens
   or keys are stored.
 - **App detection reads app metadata only**: names, icons and launch commands from the standard
   app locations (`.desktop` files on Linux, `.app` bundles' `Info.plist` on macOS, Start Menu
   shortcuts on Windows). It runs when you open or refresh the app list, never on a timer, and
   keeps the result in memory. It never reads your documents, recent files or browser data.
-- **Logs stay on your machine**, can be turned off, and do not record launch targets, arguments
-  or file paths.
+- **No log files.** When something fails, Muster prints a short message to its standard error
+  output, which is only visible if you started it from a terminal. The message never includes
+  launch targets, arguments or file paths.
 
 ## The website (muster.vainnor.com)
 

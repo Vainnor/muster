@@ -40,6 +40,11 @@ pub enum Error {
 
     #[error("no program is available to open links and bundles")]
     NoOpener,
+
+    /// The app or group runs a target the user has not approved. The shell asks, then calls
+    /// [`crate::library::Library::approve`].
+    #[error("the user has not approved what this would run")]
+    NeedsApproval,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -60,6 +65,18 @@ impl Error {
             Self::LimitReached => "limit_reached",
             Self::Launch { .. } => "launch_failed",
             Self::NoOpener => "no_opener",
+            Self::NeedsApproval => "needs_approval",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn codes_are_stable() {
+        assert_eq!(Error::NeedsApproval.code(), "needs_approval");
+        assert_eq!(Error::UnknownId.code(), "unknown_id");
     }
 }

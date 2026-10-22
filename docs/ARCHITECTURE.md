@@ -36,6 +36,11 @@ arguments in Rust and calls core. `library::Library` owns the rules: the merged 
 into the config), the first-run confirmation, and planning a run. `state::AppState` applies each
 change to a copy, writes it to disk, and only then keeps it.
 
+A manual app, or a group entry that is manual or has overrides, runs only if its exact target
+is in `config.approved`. Planning one that is not fails with `Error::NeedsApproval`; the
+command then shows the pending targets in a native dialog (`desktop/src-tauri/src/approval.rs`)
+and, on OK, calls `Library::approve` before planning again.
+
 Launching re-validates the target (`launch::plan`), spawns it detached with null stdio, and hands
 the child to a small reaper thread so it never becomes a zombie and nothing polls. A group run
 sleeps through its delays on a thread that lives for that run only.
@@ -94,11 +99,12 @@ the only source.
 | `tauri-plugin-single-instance` | desktop | A second launch focuses the running app instead of starting another. |
 | `tauri-plugin-autostart` | desktop | Start on login, off by default, driven from Rust. |
 | `tauri-plugin-global-shortcut` | desktop | Per-group hotkeys, registered from Rust. |
+| `tauri-plugin-dialog` (pinned `=2.8.1`) | desktop | The native approval dialog, shown from Rust so the webview cannot answer it. No JS permission. Brings `rfd` and, as a type dependency only, `tauri-plugin-fs`, which is never registered. |
 | `tauri-plugin-updater` | desktop, `updater` feature only | Signed update check, compiled out by default. Its default `zip` feature is off: it only handles legacy zipped Windows updates and pulls in zip 4.x with open advisories. |
 | `topcoat` `=0.10.0` | web | Server-rendered site; exact pin because the crate is pre-1.0 and the CLI must match. Features limited to router, view, serve, discover, asset, tailwind, ui. |
 | `tokio`, `http` | web | Topcoat's runtime and header types. |
 | React 19, Vite, TypeScript, vitest | desktop UI | See Phase 0. `@tauri-apps/api` is the only runtime package besides React. |
-| jsdom, Testing Library (dev only) | desktop UI tests | Component tests for keyboard behavior and the confirmation flow, against Tauri's own `mockIPC`. |
+| jsdom, Testing Library (dev only) | desktop UI tests | Component tests for keyboard behavior, theme import and group runs, against Tauri's own `mockIPC`. |
 
 Licenses: the allowlist includes MPL-2.0 for `cssparser`, `selectors` and `option-ext`, which
 Tauri's build tooling and `dirs` pull in. MPL is file-level copyleft and places no obligation on

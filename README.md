@@ -14,8 +14,10 @@ Working now:
   Start Menu shortcuts on Windows); add any program, script or web link by hand.
 - Search-first launcher: type to filter, arrow keys to move, Enter to start, Escape to close.
 - Groups: launch several apps with one action, in order, with optional delays, per-app
-  arguments and working folder. A group that runs something you added by hand asks you to
-  confirm the first time, listing every program it will start.
+  arguments and working folder.
+- Before it runs something you added by hand, or an app with arguments or a folder you set,
+  Muster shows the exact command line in a system dialog and asks you first. It asks again if
+  that command line changes.
 - Tray icon; closing the window keeps Muster in the tray.
 
 Planned:

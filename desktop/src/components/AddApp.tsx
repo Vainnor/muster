@@ -38,7 +38,7 @@ export function AddApp({ isMac, onAdd, onCancel }: Props) {
     >
       <h2 className="panel__title">Add an app</h2>
       <p className="muted">
-        For programs Muster did not find. Groups that use an app you added ask you to confirm before their first run.
+        For programs Muster did not find. The first time one runs, Muster shows exactly what it will start and asks you first.
       </p>
       <label className="label">
         Kind

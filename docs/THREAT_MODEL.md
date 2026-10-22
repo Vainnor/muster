@@ -35,18 +35,22 @@ new capability, command, CSP source, plugin, file location or import format.
 - The capability `capabilities/main.json` grants the window `main` only Muster's own commands,
   each by name (the list is `COMMANDS` in `build.rs`), plus `core:event:allow-listen` and
   `allow-unlisten` so the UI can receive `launch-failed` events from a group run. It cannot emit
-  events. No `core:default`, no shell, fs or opener plugin, no `remote.urls`. Autostart and
-  shortcuts have no JS permission.
-- No command takes a file path to read or write. The webview can name a launch target when it
-  adds an app (validated, then stored) and can ask to launch an app or group by id; it cannot
-  launch a target it supplies directly.
+  events. No `core:default`, no shell, fs or opener plugin, no `remote.urls`. Autostart,
+  shortcuts and the dialog plugin have no JS permission; the dialog plugin's own commands are
+  registered but denied.
+- No command takes a file path to read or write. The webview can add an app with any valid
+  target and ask to launch an app or group by id. A manual app, or a group entry that is manual
+  or overrides arguments or the folder, runs only after the user approves its exact target in
+  a native dialog that Rust shows (`approval.rs`). The webview has no command that approves;
+  `Library::approve` is called only after OK in that dialog.
 - Commands treat arguments as hostile and return `CommandError { code, message }`, never raw
   `io::Error` text, which can carry paths.
 - The UI applies theme tokens only when the name matches `^--mu-[a-z0-9-]+$`.
 
-So injected script could start apps the user already has in Muster, or add a new entry, which
-it still could not run inside a group without the user confirming it. It cannot read files,
-reach the network or run a command line.
+So injected script could start detected apps without overrides, and approved entries, and
+could add entries and groups. Anything else it asks to run puts a native dialog in front of
+the user listing the exact command line; it cannot answer that dialog. It cannot read files or
+reach the network.
 
 **Launching something the user did not intend.**
 - Targets are `Program { path, args, cwd }`, `AppBundle { path }` or `Url { url }`, never a
@@ -60,15 +64,21 @@ reach the network or run a command line.
   process group. Bundles and URLs go to a fixed opener as one argument: `/usr/bin/open` on
   macOS, `xdg-open` from `PATH` on Linux, `%SystemRoot%\System32\rundll32.exe
   url.dll,FileProtocolHandler` on Windows. No shell, no elevation.
-- A group with a manually added entry asks for confirmation before its first run.
-- Linux `Exec` lines will be tokenized by a field-code parser, with unknown codes dropped.
+- Approval is per target, not per group: `config.approved` holds the exact targets the user
+  OK'd. Changing an entry's arguments or folder, or a pinned app's target changing on a rescan,
+  makes a different target that needs approving again. The dialog shows every path and
+  argument quoted and escaped (`launch::describe`), and refuses a list too long to read in full.
+- Overrides on detected apps need approval too: arguments for a detected shell or PowerShell
+  are a command line.
 
 **Malicious import or tampered config.**
 - Themes arrive as text from a file the user picked in the webview's file input; the UI checks
   the size first and Rust checks it again. Then: 16 KiB limit, then strict JSON (`deny_unknown_fields`), then values that are colors
   (`#rrggbb[aa]`) or bounded numbers and enums only. There is no field that can hold CSS, a URL,
   `url()` or `@import`. Contrast failures warn and never block.
-- Config: 4 MiB limit, versioned schema, `deny_unknown_fields`, the same validation as on save.
+- Config: 4 MiB limit, versioned schema, `deny_unknown_fields` on every stored type, and the
+  rules the library applies when it adds items: unique ids with the prefix their source
+  implies, clean names, item limits, group rules. Targets are validated at launch.
   A file that fails is moved to `config.json.corrupt-N` and replaced by defaults, and the user is
   told. Writes are atomic.
 - No secrets are stored.
@@ -85,7 +95,8 @@ file, bundle or shortcut into a scanned folder, so detection treats them as untr
 - `Info.plist` is parsed by the `plist` crate; `CFBundleIconFile` cannot be a path. The parser
   reads through a 1 MiB read budget (`PLIST_READ_BUDGET`): a binary plist can point at one
   object many times, so a file of a few hundred bytes would otherwise expand exponentially.
-- A detected app still has to pass `launch::validate` when it is saved and when it runs.
+- A detected app is validated by `launch::plan` each time it runs; a pinned copy in the config
+  is not validated when it is pinned.
 
 **Network attacks.** The app makes no network request unless built with `--features updater`
 and the user starts a check. Updates are verified against a public key compiled into the app

@@ -26,9 +26,11 @@ control to get working.
 - Validate a target when it is saved **and again at launch** (`muster_core::launch::validate`):
   absolute path, exists, is a file, no `..` components; URL scheme in `http`, `https`, `mailto`.
 - Linux `.desktop` `Exec` lines are tokenized by the field-code parser, never handed to a shell.
-  Unknown field codes are dropped; `%f`/`%u` are never filled from untrusted text.
+  An entry with an unknown field code is skipped; `%f`/`%u` are never filled from untrusted text.
 - No elevation, ever: no `runas`, `sudo`, `pkexec`, `osascript ... with administrator`.
-- A group holding a manually added entry asks for confirmation before its first run.
+- A manual app, or a group entry that is manual or overrides arguments or folder, runs only
+  after the user approves its exact target in a native dialog shown from Rust. No command lets
+  the webview approve.
 
 ## Storage and imports
 - Config lives in the OS app-config dir, versioned, written atomically (temp file + rename),

@@ -3,6 +3,7 @@
 
 #![forbid(unsafe_code)]
 
+mod approval;
 mod autostart;
 mod commands;
 mod diag;
@@ -23,7 +24,9 @@ pub fn run() -> anyhow::Result<()> {
             window::show_or_log(app);
         }))
         .plugin(autostart::plugin())
-        .plugin(hotkeys::plugin());
+        .plugin(hotkeys::plugin())
+        // Rust-only: the capability grants no `dialog:*` permission, so JS cannot open one.
+        .plugin(tauri_plugin_dialog::init());
 
     #[cfg(feature = "updater")]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
@@ -45,8 +48,6 @@ pub fn run() -> anyhow::Result<()> {
             commands::list_groups,
             commands::save_group,
             commands::delete_group,
-            commands::group_confirmation,
-            commands::confirm_group,
             commands::run_group,
             commands::get_settings,
             commands::set_theme,

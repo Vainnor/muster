@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { AddApp } from "./components/AddApp";
-import { ConfirmGroup } from "./components/ConfirmGroup";
 import { GroupEditor } from "./components/GroupEditor";
 import { Launcher } from "./components/Launcher";
 import { Settings } from "./components/Settings";
@@ -54,7 +53,6 @@ export function App() {
   const [theme, setThemeSetting] = useState<string | null>(null);
   const [view, setView] = useState<View>({ name: "launcher" });
   const [status, setStatus] = useState<Status | null>(null);
-  const [confirm, setConfirm] = useState<{ group: GroupView; entries: AppView[] } | null>(null);
   const [preview, setPreview] = useState<CssVar[] | null>(null);
   useTheme(theme, preview);
 
@@ -81,32 +79,28 @@ export function App() {
     return () => void off.then((unlisten) => unlisten());
   }, [appName]);
 
+  // A cancelled approval is the user's choice, not an error.
+  const failOrCancel = useCallback(
+    (e: unknown) => {
+      const err = ipc.asCommandError(e);
+      if (err.code === "cancelled") setStatus({ text: err.message, error: false });
+      else fail(e);
+    },
+    [fail],
+  );
+
+  // Rust shows the approval dialog itself when an app or group runs something not yet approved.
   const launchApp = (app: AppView) =>
-    ipc.launchApp(app.id).then(() => say(`Started ${app.name}.`), fail);
+    ipc.launchApp(app.id).then(() => say(`Started ${app.name}.`), failOrCancel);
 
   const startGroup = async (group: GroupView) => {
     try {
       const failures = await ipc.runGroup(group.id);
       if (failures.length === 0) say(`Starting ${group.name}.`);
       else setStatus({ text: failures.map((f) => `${appName(f.app)}: ${f.message}`).join(" "), error: true });
+      if (group.needs_confirmation) void reloadGroups();
     } catch (e) {
-      if (ipc.asCommandError(e).code === "needs_confirmation") {
-        const entries = await ipc.groupConfirmation(group.id).catch(() => []);
-        setConfirm({ group, entries });
-      } else fail(e);
-    }
-  };
-
-  const confirmAndRun = async () => {
-    if (!confirm) return;
-    const { group } = confirm;
-    setConfirm(null);
-    try {
-      await ipc.confirmGroup(group.id);
-      await reloadGroups();
-      await startGroup(group);
-    } catch (e) {
-      fail(e);
+      failOrCancel(e);
     }
   };
 
@@ -290,7 +284,6 @@ export function App() {
         />
       )}
 
-      {confirm && <ConfirmGroup groupName={confirm.group.name} entries={confirm.entries} onConfirm={() => void confirmAndRun()} onCancel={() => setConfirm(null)} />}
 
       {info && (
         <footer className="shell__footer">

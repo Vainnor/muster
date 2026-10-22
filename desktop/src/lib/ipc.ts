@@ -34,8 +34,6 @@ export const removeApp = (id: string) => invoke<void>("remove_app", { id });
 export const listGroups = () => invoke<GroupView[]>("list_groups");
 export const saveGroup = (group: GroupDraft) => invoke<string>("save_group", { group });
 export const deleteGroup = (id: string) => invoke<void>("delete_group", { id });
-export const groupConfirmation = (id: string) => invoke<AppView[]>("group_confirmation", { id });
-export const confirmGroup = (id: string) => invoke<void>("confirm_group", { id });
 export const runGroup = (id: string) => invoke<StepFailure[]>("run_group", { id });
 
 export const getSettings = () => invoke<Settings>("get_settings");

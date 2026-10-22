@@ -9,8 +9,8 @@ use crate::launch::LaunchTarget;
 #[serde(transparent)]
 pub struct AppId(pub String);
 
-/// Where an entry came from. Manually added entries are treated as less trusted: a group that
-/// contains one asks for confirmation before its first run.
+/// Where an entry came from. Manually added entries are treated as less trusted: one runs only
+/// after the user approves its exact target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Source {
@@ -20,6 +20,7 @@ pub enum Source {
 
 /// One launchable thing: a detected app, or an executable, script or URL the user added.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AppEntry {
     pub id: AppId,
     pub name: String,

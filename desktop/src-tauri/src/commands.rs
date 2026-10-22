@@ -17,7 +17,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Runtime, State};
 
 use crate::state::{AppState, Notice};
-use crate::{launcher, window};
+use crate::{approval, launcher, window};
 
 /// Error sent to the webview: a stable code and a message safe to show. Never a path.
 #[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
@@ -27,6 +27,18 @@ pub(crate) struct CommandError {
 }
 
 impl CommandError {
+    pub(crate) const CANCELLED: Self = Self {
+        code: "cancelled",
+        message: "Nothing was started.",
+    };
+    pub(crate) const BUSY: Self = Self {
+        code: "busy",
+        message: "Answer the open Muster dialog first.",
+    };
+    pub(crate) const TOO_LONG_TO_CONFIRM: Self = Self {
+        code: "too_long_to_confirm",
+        message: "This runs a command line too long to show for approval. Shorten its arguments.",
+    };
     pub(crate) const INTERNAL: Self = Self {
         code: "internal",
         message: "Something went wrong inside Muster.",
@@ -71,13 +83,14 @@ impl From<muster_core::Error> for CommandError {
                     "The arguments are too long or contain invalid characters."
                 }
                 GroupError::BadWorkingDir => "The working folder must be a full path.",
-                GroupError::NeedsConfirmation => "Confirm the programs this group runs first.",
+                GroupError::NeedsConfirmation => "Muster needs your OK before it runs this.",
             },
             muster_core::Error::InvalidName => "Give it a name of 1 to 128 characters.",
             muster_core::Error::UnknownId => "That app or group no longer exists.",
             muster_core::Error::LimitReached => "You have reached the limit for this kind of item.",
             muster_core::Error::Launch { .. } => "The app could not be started.",
             muster_core::Error::NoOpener => "No program is installed to open links (xdg-open).",
+            muster_core::Error::NeedsApproval => "Muster needs your OK before it runs this.",
             muster_core::Error::InvalidTheme(t) => {
                 use muster_core::themes::ThemeError;
                 match t {
@@ -104,7 +117,7 @@ impl From<muster_core::Error> for CommandError {
             }
         };
         let code = match &e {
-            muster_core::Error::InvalidGroup(GroupError::NeedsConfirmation) => "needs_confirmation",
+            muster_core::Error::InvalidGroup(GroupError::NeedsConfirmation) => "needs_approval",
             other => other.code(),
         };
         Self { code, message }
@@ -131,14 +144,7 @@ pub(crate) struct AppView {
 impl From<&AppEntry> for AppView {
     fn from(a: &AppEntry) -> Self {
         let (kind, detail) = match &a.target {
-            LaunchTarget::Program { path, args, .. } => {
-                let mut detail = path.display().to_string();
-                for arg in args {
-                    detail.push(' ');
-                    detail.push_str(arg);
-                }
-                ("program", detail)
-            }
+            LaunchTarget::Program { .. } => ("program", muster_core::launch::describe(&a.target)),
             LaunchTarget::AppBundle { path } => ("bundle", path.display().to_string()),
             LaunchTarget::Url { url } => ("url", url.clone()),
         };
@@ -340,13 +346,17 @@ pub(crate) async fn refresh_apps(state: State<'_, AppState>) -> Result<Vec<AppVi
     Ok(app_views(&library))
 }
 
+/// Starts one app. A manual app the user has not approved yet asks first, in a native dialog.
 #[tauri::command]
-pub(crate) fn launch_app(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
-    let app = state
-        .library()?
-        .find(&AppId(id))
-        .ok_or(muster_core::Error::UnknownId)?;
-    let plan = muster_core::launch::plan(&app.target).map_err(muster_core::Error::from)?;
+pub(crate) async fn launch_app<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), CommandError> {
+    let id = AppId(id);
+    let pending = state.library()?.pending_for_app(&id)?;
+    approval::ensure(&app, &state, pending).await?;
+    let plan = state.library()?.plan_app(&id)?;
     launcher::start(&plan)
 }
 
@@ -369,7 +379,6 @@ pub(crate) fn remove_app(state: State<'_, AppState>, id: String) -> Result<(), C
 #[tauri::command]
 pub(crate) fn list_groups(state: State<'_, AppState>) -> Result<Vec<GroupView>, CommandError> {
     let library = state.library()?;
-    let apps = library.apps();
     Ok(library
         .config()
         .groups
@@ -388,7 +397,9 @@ pub(crate) fn list_groups(state: State<'_, AppState>) -> Result<Vec<GroupView>, 
                     delay_ms: e.delay_ms,
                 })
                 .collect(),
-            needs_confirmation: g.needs_confirmation(&apps),
+            needs_confirmation: library
+                .pending_for_group(&g.id)
+                .is_ok_and(|p| !p.is_empty()),
         })
         .collect())
 }
@@ -406,34 +417,19 @@ pub(crate) fn delete_group(state: State<'_, AppState>, id: String) -> Result<(),
     state.update(|lib| lib.delete_group(&GroupId(id)))
 }
 
-/// The manual entries a group would run, shown in full before the user confirms it.
+/// Starts a group. Targets that need approval and lack it are listed in a native dialog first.
+/// Returns the entries that cannot start right now; the rest launch in order on a background
+/// thread, and failures after a delay arrive as `launch-failed` events.
 #[tauri::command]
-pub(crate) fn group_confirmation(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<Vec<AppView>, CommandError> {
-    Ok(state
-        .library()?
-        .manual_entries(&GroupId(id))
-        .iter()
-        .map(AppView::from)
-        .collect())
-}
-
-#[tauri::command]
-pub(crate) fn confirm_group(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
-    state.update(|lib| lib.confirm_group(&GroupId(id)))
-}
-
-/// Starts a group. Returns the entries that cannot start right now; the rest launch in order
-/// on a background thread, and failures after a delay arrive as `launch-failed` events.
-#[tauri::command]
-pub(crate) fn run_group<R: Runtime>(
+pub(crate) async fn run_group<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, AppState>,
     id: String,
 ) -> Result<Vec<StepFailure>, CommandError> {
-    let steps = state.library()?.plan_run(&GroupId(id))?;
+    let id = GroupId(id);
+    let pending = state.library()?.pending_for_group(&id)?;
+    approval::ensure(&app, &state, pending).await?;
+    let steps = state.library()?.plan_run(&id)?;
     let failures = steps
         .iter()
         .filter_map(|s| match &s.plan {
@@ -528,7 +524,7 @@ mod tests {
         assert!(!e.message.contains("/home"));
         let confirm =
             muster_core::Error::InvalidGroup(muster_core::groups::GroupError::NeedsConfirmation);
-        assert_eq!(CommandError::from(confirm).code, "needs_confirmation");
+        assert_eq!(CommandError::from(confirm).code, "needs_approval");
     }
 
     #[test]
@@ -546,7 +542,7 @@ mod tests {
         let view = AppView::from(&entry);
         assert_eq!(
             (view.kind, view.detail.as_str()),
-            ("program", "/opt/tool --fast")
+            ("program", r#""/opt/tool" "--fast""#)
         );
     }
 }

@@ -10,7 +10,8 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::groups::Group;
-use crate::model::AppEntry;
+use crate::launch::LaunchTarget;
+use crate::model::{AppEntry, Source};
 use crate::{Error, Result};
 
 pub const CONFIG_FILE: &str = "config.json";
@@ -31,6 +32,10 @@ pub struct Config {
     /// Imported themes. Re-validated on every load.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub themes: Vec<crate::themes::Theme>,
+    /// Exact targets the user approved in the shell's native dialog. A manual app or an
+    /// overridden group entry runs only if its target is here.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub approved: Vec<LaunchTarget>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -61,6 +66,7 @@ impl Default for Config {
             groups: Vec::new(),
             settings: Settings::default(),
             themes: Vec::new(),
+            approved: Vec::new(),
         }
     }
 }
@@ -73,6 +79,7 @@ impl Config {
                 self.version
             )));
         }
+        self.validate_items()?;
         for group in &self.groups {
             group.validate(&self.apps)?;
         }
@@ -94,6 +101,53 @@ impl Config {
         }
         Ok(())
     }
+}
+
+impl Config {
+    /// The rules the library applies when it adds items, applied again to a file from disk:
+    /// unique ids with the prefix their source implies, clean names, and the item limits.
+    fn validate_items(&self) -> Result<()> {
+        use crate::library::{MAX_APP_NAME_LEN, MAX_APPROVED, MAX_GROUPS, MAX_MANUAL_APPS};
+        let bad = |what: &str| Err(Error::InvalidConfig(what.to_owned()));
+        let mut ids = std::collections::HashSet::new();
+        let mut manual = 0;
+        for app in &self.apps {
+            let prefix = match app.source {
+                Source::Manual => {
+                    manual += 1;
+                    "m:"
+                }
+                Source::Detected => "d:",
+            };
+            if !app.id.0.starts_with(prefix) || !ids.insert(app.id.0.as_str()) {
+                return bad("app ids must be unique and match their source");
+            }
+            if !clean_name(&app.name, MAX_APP_NAME_LEN) {
+                return bad("app name");
+            }
+        }
+        if manual > MAX_MANUAL_APPS {
+            return bad("too many apps");
+        }
+        let mut group_ids = std::collections::HashSet::new();
+        for group in &self.groups {
+            if !group.id.0.starts_with("g:") || !group_ids.insert(group.id.0.as_str()) {
+                return bad("group ids must be unique");
+            }
+        }
+        if self.groups.len() > MAX_GROUPS {
+            return bad("too many groups");
+        }
+        if self.approved.len() > MAX_APPROVED {
+            return bad("too many approvals");
+        }
+        Ok(())
+    }
+}
+
+fn clean_name(name: &str, max: usize) -> bool {
+    let len = name.trim().chars().count();
+    len > 0 && len <= max && !name.chars().any(char::is_control)
 }
 
 /// What [`load`] found.
@@ -247,6 +301,70 @@ mod tests {
             load(dir.path()).unwrap(),
             Loaded::Recovered { .. }
         ));
+    }
+
+    fn with(edit: impl FnOnce(&mut serde_json::Value)) -> Vec<u8> {
+        let mut json = serde_json::json!({
+            "version": CURRENT_VERSION,
+            "apps": [{"id": "m:a", "name": "A", "source": "manual",
+                      "target": {"kind": "url", "url": "https://a.example"}}],
+            "groups": [{"id": "g:g", "name": "G", "entries": [{"app": "m:a"}]}],
+        });
+        edit(&mut json);
+        serde_json::to_vec(&json).unwrap()
+    }
+
+    #[test]
+    fn accepts_a_well_formed_file() {
+        assert!(parse(&with(|_| {})).is_ok());
+    }
+
+    #[test]
+    fn rejects_items_the_library_would_never_write() {
+        type Edit = Box<dyn FnOnce(&mut serde_json::Value)>;
+        let cases: [(&str, Edit); 8] = [
+            (
+                "duplicate app id",
+                Box::new(|j| {
+                    let a = j["apps"][0].clone();
+                    j["apps"].as_array_mut().unwrap().push(a);
+                }),
+            ),
+            (
+                "manual app with a detected id",
+                Box::new(|j| j["apps"][0]["id"] = "d:a".into()),
+            ),
+            (
+                "control character in a name",
+                Box::new(|j| j["apps"][0]["name"] = "A\u{7}".into()),
+            ),
+            (
+                "group id without its prefix",
+                Box::new(|j| j["groups"][0]["id"] = "g".into()),
+            ),
+            (
+                "duplicate group id",
+                Box::new(|j| {
+                    let g = j["groups"][0].clone();
+                    j["groups"].as_array_mut().unwrap().push(g);
+                }),
+            ),
+            (
+                "unknown app field",
+                Box::new(|j| j["apps"][0]["extra"] = true.into()),
+            ),
+            (
+                "unknown group field",
+                Box::new(|j| j["groups"][0]["confirmed"] = true.into()),
+            ),
+            (
+                "unknown target field",
+                Box::new(|j| j["apps"][0]["target"]["args"] = "x".into()),
+            ),
+        ];
+        for (what, edit) in cases {
+            assert!(parse(&with(edit)).is_err(), "{what}");
+        }
     }
 
     #[test]

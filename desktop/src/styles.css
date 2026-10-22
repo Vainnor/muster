@@ -218,8 +218,7 @@ textarea.field {
 .results,
 .rows,
 .entries,
-.picker,
-.confirm-list {
+.picker {
   margin: 0;
   padding: 0;
   list-style: none;
@@ -391,40 +390,6 @@ textarea.field {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-/* Confirmation */
-.dialog {
-  max-width: 560px;
-  padding: var(--mu-space-5);
-  border: 1px solid var(--mu-border);
-  border-radius: var(--mu-radius);
-  background: var(--mu-bg);
-  color: var(--mu-text);
-}
-
-.dialog::backdrop {
-  background: var(--mu-bg);
-  opacity: 0.7;
-}
-
-.confirm-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--mu-space-2);
-  margin-bottom: var(--mu-space-3);
-}
-
-.confirm-list li {
-  display: flex;
-  flex-direction: column;
-  gap: var(--mu-space-1);
-}
-
-.confirm-list__detail {
-  font-family: var(--mu-font-mono, monospace);
-  font-size: var(--mu-text-sm);
-  overflow-wrap: anywhere;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -19,8 +19,8 @@ pub const MAX_ARG_LEN: usize = 4096;
 pub const MAX_URL_LEN: usize = 2048;
 
 /// Something the user can launch.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum LaunchTarget {
     /// An executable or script, started directly with an argument array.
     Program {
@@ -248,6 +248,26 @@ fn parse_url(raw: &str) -> Result<Url, TargetError> {
         return Err(TargetError::BadUrl);
     }
     Ok(url)
+}
+
+/// A target as one line the user can read before approving it. Every path and argument is
+/// quoted and escaped, so `["a b"]` and `["a", "b"]` look different and control characters
+/// show as escapes.
+#[must_use]
+pub fn describe(target: &LaunchTarget) -> String {
+    match target {
+        LaunchTarget::Program { path, args, cwd } => {
+            let words = std::iter::once(format!("{:?}", path.display().to_string()))
+                .chain(args.iter().map(|a| format!("{a:?}")));
+            let line = words.collect::<Vec<_>>().join(" ");
+            match cwd {
+                Some(cwd) => format!("{line} (in {:?})", cwd.display().to_string()),
+                None => line,
+            }
+        }
+        LaunchTarget::AppBundle { path } => format!("open {:?}", path.display().to_string()),
+        LaunchTarget::Url { url } => format!("open {url:?}"),
+    }
 }
 
 #[cfg(test)]
@@ -507,5 +527,27 @@ mod tests {
         };
         let mut child = launch(&plan(&target).unwrap()).unwrap();
         assert!(child.wait().unwrap().success());
+    }
+
+    #[test]
+    fn describe_quotes_every_part() {
+        let split = LaunchTarget::Program {
+            path: "/bin/sh".into(),
+            args: vec!["-c".into(), "a b".into()],
+            cwd: Some("/tmp".into()),
+        };
+        assert_eq!(describe(&split), r#""/bin/sh" "-c" "a b" (in "/tmp")"#);
+        let joined = LaunchTarget::Program {
+            path: "/bin/sh".into(),
+            args: vec!["-c".into(), "a".into(), "b\u{7}".into()],
+            cwd: None,
+        };
+        assert_eq!(describe(&joined), r#""/bin/sh" "-c" "a" "b\u{7}""#);
+        assert_eq!(
+            describe(&LaunchTarget::Url {
+                url: "https://a.example".into()
+            }),
+            r#"open "https://a.example""#
+        );
     }
 }

@@ -29,7 +29,8 @@ pub(crate) async fn page() -> Result<impl View> {
                 items: &[
                     "Finds the apps installed on Windows, macOS and Linux.",
                     "Add any program, script or web link by hand.",
-                    "Before a group runs a script you added yourself for the first time, Muster asks you to confirm it.",
+                    "Before it runs something you added yourself, or an app with arguments you set, Muster shows \
+                     the exact command and asks you first.",
                 ]
             )
             feature(
