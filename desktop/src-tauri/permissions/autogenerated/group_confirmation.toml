@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-group-confirmation"
+description = "Enables the group_confirmation command without any pre-configured scope."
+commands.allow = ["group_confirmation"]
+
+[[permission]]
+identifier = "deny-group-confirmation"
+description = "Denies the group_confirmation command without any pre-configured scope."
+commands.deny = ["group_confirmation"]

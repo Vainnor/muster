@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-run-group"
+description = "Enables the run_group command without any pre-configured scope."
+commands.allow = ["run_group"]
+
+[[permission]]
+identifier = "deny-run-group"
+description = "Denies the run_group command without any pre-configured scope."
+commands.deny = ["run_group"]

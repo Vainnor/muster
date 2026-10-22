@@ -32,14 +32,21 @@ new capability, command, CSP source, plugin, file location or import format.
   `object-src`/`base-uri`/`form-action`/`frame-ancestors 'none'`. No inline script, no eval, no
   remote origin. `devCsp` adds only `'unsafe-inline'` styles and the Vite socket for development.
 - `freezePrototype` is on.
-- The capability `capabilities/main.json` grants exactly `allow-app-info` and
-  `allow-theme-tokens` to the window `main`. No `core:default`, no shell, fs or opener plugin, no
-  `remote.urls`. Autostart and shortcuts have no JS permission.
+- The capability `capabilities/main.json` grants the window `main` only Muster's own commands,
+  each by name (the list is `COMMANDS` in `build.rs`), plus `core:event:allow-listen` and
+  `allow-unlisten` so the UI can receive `launch-failed` events from a group run. It cannot emit
+  events. No `core:default`, no shell, fs or opener plugin, no `remote.urls`. Autostart and
+  shortcuts have no JS permission.
+- No command takes a file path to read or write. The webview can name a launch target when it
+  adds an app (validated, then stored) and can ask to launch an app or group by id; it cannot
+  launch a target it supplies directly.
 - Commands treat arguments as hostile and return `CommandError { code, message }`, never raw
   `io::Error` text, which can carry paths.
 - The UI applies theme tokens only when the name matches `^--mu-[a-z0-9-]+$`.
 
-So even injected script can ask for app info and theme tokens, and nothing else.
+So injected script could start apps the user already has in Muster, or add a new entry, which
+it still could not run inside a group without the user confirming it. It cannot read files,
+reach the network or run a command line.
 
 **Launching something the user did not intend.**
 - Targets are `Program { path, args, cwd }`, `AppBundle { path }` or `Url { url }`, never a

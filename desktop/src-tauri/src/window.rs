@@ -22,15 +22,17 @@ pub(crate) fn show<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     Ok(())
 }
 
+/// Destroys the main window and its webview. Muster keeps running in the tray.
+pub(crate) fn close<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    match app.get_webview_window(MAIN) {
+        Some(window) => window.destroy(),
+        None => Ok(()),
+    }
+}
+
 /// For callbacks that cannot return an error (tray, single instance).
 pub(crate) fn show_or_log<R: Runtime>(app: &AppHandle<R>) {
     if let Err(e) = show(app) {
-        #[allow(
-            clippy::print_stderr,
-            reason = "local diagnostics until the log sink exists"
-        )]
-        {
-            eprintln!("could not open the main window: {e}");
-        }
+        crate::diag::report("opening the main window", &e);
     }
 }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-remove-app"
+description = "Enables the remove_app command without any pre-configured scope."
+commands.allow = ["remove_app"]
+
+[[permission]]
+identifier = "deny-remove-app"
+description = "Denies the remove_app command without any pre-configured scope."
+commands.deny = ["remove_app"]

@@ -16,7 +16,9 @@ This is the technical privacy statement for the Muster desktop app and website. 
   - Linux: `$XDG_CONFIG_HOME/muster` (usually `~/.config/muster`)
   - macOS: `~/Library/Application Support/com.vainnor.muster`
   - Windows: `%APPDATA%\Vainnor\Muster`
-  Nothing is uploaded. No passwords, tokens or keys are stored.
+  The file holds the apps you added by hand, your groups, a copy of each detected app a group
+  uses (name and launch command), and your settings. Nothing is uploaded. No passwords, tokens
+  or keys are stored.
 - **App detection reads app metadata only**: names, icons and launch commands from the standard
   app locations (`.desktop` files on Linux, `.app` bundles' `Info.plist` on macOS, Start Menu
   shortcuts on Windows). It runs when you open or refresh the app list, never on a timer, and

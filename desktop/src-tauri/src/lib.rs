@@ -5,11 +5,15 @@
 
 mod autostart;
 mod commands;
+mod diag;
 mod hotkeys;
+mod launcher;
+mod state;
 mod tray;
 mod window;
 
-use tauri::RunEvent;
+use anyhow::Context as _;
+use tauri::{Manager, RunEvent};
 
 /// Builds and runs the app until the user quits from the tray.
 pub fn run() -> anyhow::Result<()> {
@@ -27,9 +31,31 @@ pub fn run() -> anyhow::Result<()> {
     let app = builder
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
-            commands::theme_tokens
+            commands::theme_tokens,
+            commands::list_themes,
+            commands::list_apps,
+            commands::refresh_apps,
+            commands::launch_app,
+            commands::add_app,
+            commands::remove_app,
+            commands::list_groups,
+            commands::save_group,
+            commands::delete_group,
+            commands::group_confirmation,
+            commands::confirm_group,
+            commands::run_group,
+            commands::get_settings,
+            commands::set_theme,
+            commands::startup_notice,
+            commands::close_window
         ])
         .setup(|app| {
+            let dir = app
+                .path()
+                .app_config_dir()
+                .context("finding the app config directory")?;
+            std::fs::create_dir_all(&dir).context("creating the app config directory")?;
+            app.manage(state::AppState::load(dir));
             tray::create(app.handle())?;
             window::show(app.handle())?;
             Ok(())

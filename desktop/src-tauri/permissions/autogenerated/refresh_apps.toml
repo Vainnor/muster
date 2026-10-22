@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-refresh-apps"
+description = "Enables the refresh_apps command without any pre-configured scope."
+commands.allow = ["refresh_apps"]
+
+[[permission]]
+identifier = "deny-refresh-apps"
+description = "Denies the refresh_apps command without any pre-configured scope."
+commands.deny = ["refresh_apps"]

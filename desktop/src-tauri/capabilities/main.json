@@ -1,7 +1,30 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "The main launcher window. Only Muster's own commands, each granted by name; no core:default, no shell, fs or opener plugin. Autostart and global shortcuts are driven from Rust and have no JS permission.",
-  "windows": ["main"],
-  "permissions": ["allow-app-info", "allow-theme-tokens"]
+  "description": "The main launcher window. Only Muster's own commands, each granted by name, plus core:event listen/unlisten so the UI can receive launch-failed events from group runs (it cannot emit). No core:default, no shell, fs or opener plugin. Autostart and global shortcuts are driven from Rust and have no JS permission.",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-app-info",
+    "allow-theme-tokens",
+    "allow-list-themes",
+    "allow-list-apps",
+    "allow-refresh-apps",
+    "allow-launch-app",
+    "allow-add-app",
+    "allow-remove-app",
+    "allow-list-groups",
+    "allow-save-group",
+    "allow-delete-group",
+    "allow-group-confirmation",
+    "allow-confirm-group",
+    "allow-run-group",
+    "allow-get-settings",
+    "allow-set-theme",
+    "allow-startup-notice",
+    "allow-close-window"
+  ]
 }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-add-app"
+description = "Enables the add_app command without any pre-configured scope."
+commands.allow = ["add_app"]
+
+[[permission]]
+identifier = "deny-add-app"
+description = "Denies the add_app command without any pre-configured scope."
+commands.deny = ["add_app"]
