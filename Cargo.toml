@@ -4,7 +4,7 @@ members = [
   "crates/muster-core",
   "crates/muster-ui",
   "desktop/src-tauri",
-  # "web",
+  "web",
 ]
 default-members = ["crates/muster-core", "crates/muster-ui"]
 

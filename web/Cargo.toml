@@ -1,0 +1,24 @@
+[package]
+name = "muster-web"
+description = "The Muster website: server-rendered with Topcoat, no JavaScript, no cookies, no third-party requests."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+muster-core.workspace = true
+muster-ui.workspace = true
+# Exact pin: Topcoat is experimental and breaks between minor versions (.claude/rules/topcoat.md).
+topcoat = { version = "=0.10.0", default-features = false, features = ["router", "view", "serve", "discover", "asset", "tailwind", "ui"] }
+tokio = { version = "1.54", features = ["rt-multi-thread", "macros", "net", "signal"] }
+http = "1"
+
+[build-dependencies]
+topcoat = { version = "=0.10.0", default-features = false, features = ["tailwind"] }
+
+[lints]
+workspace = true

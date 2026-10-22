@@ -1,0 +1,25 @@
+# Topcoat UI install state. Managed by `topcoat ui`.
+version = 1
+components_dir = "src/components"
+
+[theme]
+name = "neutral"
+registry = "topcoat"
+hash = "sha256:6e451a2d3470b0ee544ccf4240da8631bad4c807a06ae0d3a1fc77154b86c3b9"
+file = "styles.css"
+
+[registries.topcoat.components.badge]
+hash = "sha256:1601ea9b4650a1d90483a4d9497d413c05d4f72ed6db2f57a2549f65db393d88"
+file = "src/components/badge.rs"
+
+[registries.topcoat.components.button]
+hash = "sha256:260ed94b12414e4a0e625f75fae88aa51e20954171dcba65cb3cd1937a75ee4d"
+file = "src/components/button.rs"
+
+[registries.topcoat.components.card]
+hash = "sha256:0d0599fb85b42d341aea108fadb25937afdd47b0521d1246dc2bf3bda42f1367"
+file = "src/components/card.rs"
+
+[registries.topcoat.components.separator]
+hash = "sha256:7ba5a7628128e1811e960884bd56da34f754c1d516230b4442dfbc1cb97e73e9"
+file = "src/components/separator.rs"

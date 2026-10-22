@@ -1,0 +1,84 @@
+//! Plain-language privacy policy, drafted from PRIVACY.md. Keep the two in step
+//! (`.claude/rules/docs.md`).
+
+use topcoat::{
+    Result,
+    router::page,
+    view::{View, view},
+};
+
+use crate::site::{CONTACT_EMAIL, GITHUB_URL, LEGAL_UPDATED};
+
+#[page]
+pub(crate) async fn page() -> Result<impl View> {
+    let mailto = format!("mailto:{CONTACT_EMAIL}");
+    Ok(view! {
+        <article class="max-w-2xl space-y-4">
+            <h1 class="text-3xl font-bold">"Privacy policy"</h1>
+            <p class="text-sm text-muted-foreground">
+                "Last updated "
+                (LEGAL_UPDATED)
+            </p>
+            <p class="rounded-md border border-border p-3 text-sm">
+                "Draft. This is a plain-language template, not legal advice, and has not been \
+                 reviewed by a lawyer."
+            </p>
+
+            <h2 class="text-xl font-semibold pt-4">"The short version"</h2>
+            <p>
+                "Muster does not collect, send or sell any information about you. The app and this website have no analytics, no trackers and no accounts."
+            </p>
+
+            <h2 class="text-xl font-semibold pt-4">"The Muster app"</h2>
+            <ul class="list-disc pl-6 space-y-1">
+                <li>
+                    "The app does not send usage data, crash reports or anything else to us or to anyone else."
+                </li>
+                <li>
+                    "It works without an internet connection. The only request it can make is to check GitHub for a newer version, and only when you ask it to, or after you switch that check on."
+                </li>
+                <li>
+                    "Your apps, groups, themes and settings are saved in a file on your own computer. They are never uploaded."
+                </li>
+                <li>
+                    "To find installed apps, Muster reads app names, icons and launch commands from the standard app folders. It does not read your documents, recent files or browser data."
+                </li>
+                <li>"Muster stores no passwords, tokens or keys."</li>
+            </ul>
+
+            <h2 class="text-xl font-semibold pt-4">"This website"</h2>
+            <ul class="list-disc pl-6 space-y-1">
+                <li>"The website sets no cookies and runs no scripts."</li>
+                <li>
+                    "It loads nothing from other companies: no fonts, images, scripts or embeds."
+                </li>
+                <li>
+                    "The server that hosts it may keep standard access logs (IP address, time, page requested, browser name) to keep it running and secure. These logs are not used to track you and are not shared."
+                </li>
+                <li>
+                    "The download button sends you to GitHub, where "
+                    <a
+                        class="underline"
+                        href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement"
+                    >
+                        "GitHub's privacy statement"
+                    </a>
+                    " applies."
+                </li>
+            </ul>
+
+            <h2 class="text-xl font-semibold pt-4">"Changes"</h2>
+            <p>
+                "If this ever changes, the change will be described in the release notes and on this page before it ships. The source code is public on "
+                <a class="underline" href=(GITHUB_URL)>"GitHub"</a>
+                ", so anyone can check."
+            </p>
+
+            <h2 class="text-xl font-semibold pt-4">"Contact"</h2>
+            <p>
+                "Questions: "
+                <a class="underline" href=(mailto)>(CONTACT_EMAIL)</a>
+            </p>
+        </article>
+    })
+}
