@@ -1,0 +1,16 @@
+/target/
+node_modules/
+/desktop/dist/
+/desktop/src-tauri/gen/
+/web/bundle-assets/*
+!/web/bundle-assets/.keep
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+# Tauri updater signing keys are never committed.
+*.key
+*.key.pub
+.claude/settings.local.json
+.claude/worktrees/
