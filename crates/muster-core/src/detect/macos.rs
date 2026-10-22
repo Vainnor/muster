@@ -103,6 +103,34 @@ fn read_bundle(bundle: &Path) -> Option<Bundle> {
     }))
 }
 
+/// Total bytes the plist parser may read from one file. A binary plist can refer to the same
+/// object many times, and the parser reads it again on every visit, so a file of a few hundred
+/// bytes can expand exponentially; the 256 KiB file cap does not bound that work.
+const PLIST_READ_BUDGET: u64 = 1024 * 1024;
+
+/// Fails reads once `left` bytes have been read in total.
+struct ReadBudget<R> {
+    inner: R,
+    left: u64,
+}
+
+impl<R: std::io::Read> std::io::Read for ReadBudget<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.left = self
+            .left
+            .checked_sub(n as u64)
+            .ok_or_else(|| std::io::Error::other("plist read budget exceeded"))?;
+        Ok(n)
+    }
+}
+
+impl<R: std::io::Seek> std::io::Seek for ReadBudget<R> {
+    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
+        self.inner.seek(pos)
+    }
+}
+
 /// What Muster reads from an `Info.plist`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InfoPlist {
@@ -116,7 +144,11 @@ pub struct InfoPlist {
 /// Parses an XML or binary `Info.plist`. `None` if it is not a plist dictionary.
 #[must_use]
 pub fn parse_info_plist(bytes: &[u8]) -> Option<InfoPlist> {
-    let value = plist::Value::from_reader(std::io::Cursor::new(bytes)).ok()?;
+    let reader = ReadBudget {
+        inner: std::io::Cursor::new(bytes),
+        left: PLIST_READ_BUDGET,
+    };
+    let value = plist::Value::from_reader(reader).ok()?;
     let dict = value.as_dictionary()?;
     let string = |key: &str| dict.get(key).and_then(plist::Value::as_string);
     let flag = |key: &str| match dict.get(key) {
@@ -161,6 +193,55 @@ mod tests {
         assert_eq!(info.identifier.as_deref(), Some("com.example.app"));
         assert_eq!(info.icon_file.as_deref(), Some("AppIcon"));
         assert!(info.listed);
+    }
+
+    /// A binary plist whose dictionary holds a valid identifier and a chain of `depth` arrays,
+    /// each referring twice to the next. It is a few hundred bytes but expands to 2^depth values.
+    fn shared_reference_chain(depth: u8) -> Vec<u8> {
+        fn ascii(s: &str) -> Vec<u8> {
+            let mut out = vec![0x5f, 0x10, u8::try_from(s.len()).unwrap()];
+            out.extend_from_slice(s.as_bytes());
+            out
+        }
+        let mut objects: Vec<Vec<u8>> = vec![
+            vec![0xd2, 1, 2, 3, 4], // dict: keys 1, 2; values 3, 4
+            ascii("CFBundleIdentifier"),
+            vec![0x51, b'x'],
+            ascii("com.example.chain"),
+        ];
+        for i in 0..depth {
+            objects.push(vec![0xa2, 5 + i, 5 + i]); // array of two refs to the next object
+        }
+        objects.push(vec![0x10, 0]); // integer 0
+        let mut file = b"bplist00".to_vec();
+        let mut offsets = Vec::new();
+        for object in &objects {
+            offsets.push(u16::try_from(file.len()).unwrap());
+            file.extend_from_slice(object);
+        }
+        let table = file.len() as u64;
+        for offset in offsets {
+            file.extend_from_slice(&offset.to_be_bytes());
+        }
+        file.extend_from_slice(&[0; 6]);
+        file.extend_from_slice(&[2, 1]); // offset size, reference size
+        file.extend_from_slice(&(objects.len() as u64).to_be_bytes());
+        file.extend_from_slice(&0u64.to_be_bytes()); // top object
+        file.extend_from_slice(&table.to_be_bytes());
+        file
+    }
+
+    #[test]
+    fn a_shallow_shared_reference_chain_still_parses() {
+        let info = parse_info_plist(&shared_reference_chain(4)).unwrap();
+        assert_eq!(info.identifier.as_deref(), Some("com.example.chain"));
+    }
+
+    #[test]
+    fn stops_parsing_a_plist_whose_shared_references_expand() {
+        let bytes = shared_reference_chain(20);
+        assert!(bytes.len() < 256);
+        assert_eq!(parse_info_plist(&bytes), None);
     }
 
     #[test]

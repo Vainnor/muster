@@ -82,7 +82,9 @@ file, bundle or shortcut into a scanned folder, so detection treats them as untr
 - The `.lnk` reader in `detect/windows.rs` bounds-checks every offset (a test truncates a
   shortcut at every byte). Only ASCII or UTF-16 paths are accepted, `%VARIABLE%` references
   must resolve, and only `.exe` targets are listed.
-- `Info.plist` is parsed by the `plist` crate; `CFBundleIconFile` cannot be a path.
+- `Info.plist` is parsed by the `plist` crate; `CFBundleIconFile` cannot be a path. The parser
+  reads through a 1 MiB read budget (`PLIST_READ_BUDGET`): a binary plist can point at one
+  object many times, so a file of a few hundred bytes would otherwise expand exponentially.
 - A detected app still has to pass `launch::validate` when it is saved and when it runs.
 
 **Network attacks.** The app makes no network request unless built with `--features updater`
