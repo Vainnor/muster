@@ -11,7 +11,7 @@ CSP and the other security headers on every response.
 | `/theme.css` | `src/theme_css.rs`: the light and dark presets from `muster-ui` |
 
 The privacy policy and terms are drafts, not legal advice. The contact address is the single
-placeholder `CONTACT_EMAIL` in `src/site.rs`; replace it before going live.
+constant `CONTACT_EMAIL` in `src/site.rs`.
 
 ## Run locally
 

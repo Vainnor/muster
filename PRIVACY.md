@@ -33,3 +33,8 @@ This is the technical privacy statement for the Muster desktop app and website. 
 
 A change to any of the above is called out in the release notes and updated here and on the
 website at the same time.
+
+## Contact
+
+Questions about privacy: muster@vainnor.com. Security issues go through
+[private vulnerability reporting](SECURITY.md) instead.
