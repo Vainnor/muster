@@ -1,0 +1,21 @@
+name: Feature request
+description: Suggest something Muster should do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what gets in the way today?
+    validations: { required: true }
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+  - type: checkboxes
+    id: fit
+    attributes:
+      label: Fit
+      options:
+        - label: This works offline and needs no telemetry or account.
+          required: true

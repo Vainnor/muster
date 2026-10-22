@@ -1,0 +1,35 @@
+name: Bug report
+description: Something does not work as described.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Muster version
+      placeholder: "0.1.0"
+    validations: { required: true }
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux]
+    validations: { required: true }
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version and desktop environment
+      placeholder: "Ubuntu 24.04, GNOME 46, Wayland"
+  - type: markdown
+    attributes:
+      value: Please do not paste file paths from your home folder, app lists or other personal data.
