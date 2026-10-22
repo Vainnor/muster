@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- The ^v█ mark on the macOS icon grid: an 824 px tile with a 100 px margin. -->
+  <rect x="100" y="100" width="824" height="824" rx="184" fill="#10141b"/>
+  <rect x="104" y="104" width="816" height="816" rx="180" fill="none" stroke="#35465c" stroke-width="8"/>
+  <path d="M214 332 H324 L392 560 L460 332 H570 L447 692 H337 Z" fill="#b5a8f5"/>
+  <rect x="620" y="332" width="190" height="360" fill="#b5a8f5"/>
+</svg>

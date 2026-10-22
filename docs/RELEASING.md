@@ -15,6 +15,12 @@
 
 The draft step needs `contents: write`; every other job in the repo is read-only.
 
+## Icons
+
+`desktop/app-icon.svg` is the source for every app icon, and `web/src/favicon.svg` uses the
+same shapes. After changing it, run `pnpm --dir desktop tauri icon app-icon.svg -o <tmp>` and
+copy the files `tauri.conf.json` lists, plus `icon.png`, into `desktop/src-tauri/icons/`.
+
 ## Unsigned builds
 
 Builds are not code-signed or notarized yet, and the release notes say so.
