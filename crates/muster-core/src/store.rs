@@ -28,6 +28,9 @@ pub struct Config {
     pub groups: Vec<Group>,
     #[serde(default)]
     pub settings: Settings,
+    /// Imported themes. Re-validated on every load.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub themes: Vec<crate::themes::Theme>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -57,6 +60,7 @@ impl Default for Config {
             apps: Vec::new(),
             groups: Vec::new(),
             settings: Settings::default(),
+            themes: Vec::new(),
         }
     }
 }
@@ -71,6 +75,22 @@ impl Config {
         }
         for group in &self.groups {
             group.validate(&self.apps)?;
+        }
+        let mut ids = std::collections::HashSet::new();
+        for theme in &self.themes {
+            if crate::themes::is_reserved_id(&theme.id) {
+                return Err(crate::themes::ThemeError::ReservedId.into());
+            }
+            if !ids.insert(theme.id.as_str()) {
+                return Err(Error::InvalidConfig(format!(
+                    "duplicate theme id {}",
+                    theme.id
+                )));
+            }
+            crate::themes::revalidate(theme.clone())?;
+        }
+        if self.themes.len() > crate::library::MAX_THEMES {
+            return Err(Error::InvalidConfig("too many themes".into()));
         }
         Ok(())
     }

@@ -238,6 +238,8 @@ pub enum ThemeError {
     BadRadius,
     #[error("icon size must be between 16 and 64")]
     BadIconSize,
+    #[error("theme id is used by a built-in theme")]
+    ReservedId,
 }
 
 /// A pair of colors below the WCAG AA threshold. Shown to the user; never blocks the import.
@@ -284,6 +286,23 @@ pub fn parse(bytes: &[u8]) -> Result<Parsed, ThemeError> {
         theme: ValidTheme(theme),
         warnings,
     })
+}
+
+/// Re-checks a theme that was already parsed once, such as a custom theme read back from the
+/// config file. The file on disk is untrusted, so it goes through the same rules as an import.
+pub fn revalidate(theme: Theme) -> Result<Parsed, ThemeError> {
+    validate(&theme)?;
+    let warnings = contrast_warnings(&theme.colors);
+    Ok(Parsed {
+        theme: ValidTheme(theme),
+        warnings,
+    })
+}
+
+/// Whether `id` belongs to a preset or the "follow system" setting.
+#[must_use]
+pub fn is_reserved_id(id: &str) -> bool {
+    id == "system" || PRESETS.iter().any(|(pid, _)| *pid == id)
 }
 
 /// A bundled preset by id.

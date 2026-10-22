@@ -14,12 +14,14 @@ use crate::groups::{self, Group, GroupEntry, GroupError, GroupId, Step};
 use crate::launch::LaunchTarget;
 use crate::model::{AppEntry, AppId, Source};
 use crate::store::Config;
+use crate::themes::{self, Parsed, ThemeError, ValidTheme};
 use crate::{Error, Result};
 
 /// Limits on stored items, to bound config size.
 pub const MAX_MANUAL_APPS: usize = 1_024;
 pub const MAX_GROUPS: usize = 256;
 pub const MAX_APP_NAME_LEN: usize = 128;
+pub const MAX_THEMES: usize = 64;
 
 const DETECTED: &str = "d:";
 const MANUAL: &str = "m:";
@@ -235,6 +237,68 @@ impl Library {
     pub fn plan_run(&self, id: &GroupId) -> Result<Vec<Step>> {
         let group = self.group(id).ok_or(Error::UnknownId)?;
         Ok(groups::plan_group(group, &self.apps())?)
+    }
+
+    /// A preset or imported theme by id.
+    #[must_use]
+    pub fn theme(&self, id: &str) -> Option<ValidTheme> {
+        themes::preset(id).or_else(|| {
+            self.config
+                .themes
+                .iter()
+                .find(|t| t.id == id)
+                .and_then(|t| themes::revalidate(t.clone()).ok())
+                .map(|p| p.theme)
+        })
+    }
+
+    /// Imported themes, in import order.
+    #[must_use]
+    pub fn custom_themes(&self) -> Vec<ValidTheme> {
+        self.config
+            .themes
+            .iter()
+            .filter_map(|t| themes::revalidate(t.clone()).ok())
+            .map(|p| p.theme)
+            .collect()
+    }
+
+    /// Imports a theme file. An imported theme with the id of an earlier import replaces it;
+    /// the id of a built-in theme is refused. Contrast problems are returned, not refused.
+    pub fn import_theme(&mut self, bytes: &[u8]) -> Result<Parsed> {
+        let parsed = themes::parse(bytes)?;
+        let id = parsed.theme.theme().id.clone();
+        if themes::is_reserved_id(&id) {
+            return Err(ThemeError::ReservedId.into());
+        }
+        let existing = self.config.themes.iter().position(|t| t.id == id);
+        if existing.is_none() && self.config.themes.len() >= MAX_THEMES {
+            return Err(Error::LimitReached);
+        }
+        let mut theme = parsed.theme.theme().clone();
+        theme.schema = None;
+        match existing {
+            Some(i) => {
+                if let Some(slot) = self.config.themes.get_mut(i) {
+                    *slot = theme;
+                }
+            }
+            None => self.config.themes.push(theme),
+        }
+        Ok(parsed)
+    }
+
+    /// Removes an imported theme. If it was in use, Muster goes back to following the system.
+    pub fn remove_theme(&mut self, id: &str) -> Result<()> {
+        let before = self.config.themes.len();
+        self.config.themes.retain(|t| t.id != id);
+        if self.config.themes.len() == before {
+            return Err(Error::UnknownId);
+        }
+        if self.config.settings.theme == id {
+            self.config.settings.theme = "system".into();
+        }
+        Ok(())
     }
 
     /// Keeps exactly the detected apps that groups reference in `config.apps`, refreshed from
@@ -489,6 +553,60 @@ mod tests {
             lib.remove_manual(&AppId("d:x".into())),
             Err(Error::UnknownId)
         ));
+    }
+
+    fn theme_json(id: &str, text: &str) -> Vec<u8> {
+        let mut theme: serde_json::Value =
+            serde_json::from_str(crate::themes::PRESETS[0].1).unwrap();
+        theme["id"] = id.into();
+        theme["name"] = "Mine".into();
+        theme["colors"]["text"] = text.into();
+        serde_json::to_vec(&theme).unwrap()
+    }
+
+    #[test]
+    fn imports_replaces_and_removes_custom_themes() {
+        let mut lib = Library::new(Config::default());
+        let parsed = lib.import_theme(&theme_json("mine", "#000000")).unwrap();
+        assert!(parsed.warnings.is_empty());
+        assert!(lib.theme("mine").is_some());
+        // Low contrast warns but still imports, replacing the earlier one.
+        let parsed = lib.import_theme(&theme_json("mine", "#eeeeee")).unwrap();
+        assert!(!parsed.warnings.is_empty());
+        assert_eq!(lib.custom_themes().len(), 1);
+
+        lib.config_mut().settings.theme = "mine".into();
+        lib.remove_theme("mine").unwrap();
+        assert_eq!(lib.config().settings.theme, "system");
+        assert!(matches!(lib.remove_theme("mine"), Err(Error::UnknownId)));
+    }
+
+    #[test]
+    fn import_refuses_built_in_ids_and_bad_files() {
+        let mut lib = Library::new(Config::default());
+        for id in ["dark", "system"] {
+            assert!(matches!(
+                lib.import_theme(&theme_json(id, "#000000")),
+                Err(Error::InvalidTheme(ThemeError::ReservedId))
+            ));
+        }
+        assert!(matches!(
+            lib.import_theme(b"{}"),
+            Err(Error::InvalidTheme(_))
+        ));
+        assert!(lib.custom_themes().is_empty());
+    }
+
+    #[test]
+    fn store_rejects_a_tampered_custom_theme() {
+        let mut lib = Library::new(Config::default());
+        lib.import_theme(&theme_json("mine", "#000000")).unwrap();
+        let mut json: serde_json::Value = serde_json::to_value(lib.config()).unwrap();
+        json["themes"][0]["radius"] = 200.into();
+        assert!(crate::store::parse(&serde_json::to_vec(&json).unwrap()).is_err());
+        json["themes"][0]["radius"] = 4.into();
+        json["themes"][0]["id"] = "dark".into();
+        assert!(crate::store::parse(&serde_json::to_vec(&json).unwrap()).is_err());
     }
 
     #[test]
