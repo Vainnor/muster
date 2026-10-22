@@ -63,6 +63,18 @@ So even injected script can ask for app info and theme tokens, and nothing else.
   told. Writes are atomic.
 - No secrets are stored.
 
+**Malformed or hostile app metadata.** Any program the user installs can drop a `.desktop`
+file, bundle or shortcut into a scanned folder, so detection treats them as untrusted input.
+- Files over 256 KiB are skipped unread; a scan visits at most 50,000 directory entries and
+  returns at most 4,096 apps, and never enters symlinked directories.
+- Linux `Exec` lines are tokenized per the Desktop Entry spec into an argument array. Shell
+  syntax (`;`, `|`, `$HOME`) stays literal text; unknown field codes reject the entry.
+- The `.lnk` reader in `detect/windows.rs` bounds-checks every offset (a test truncates a
+  shortcut at every byte). Only ASCII or UTF-16 paths are accepted, `%VARIABLE%` references
+  must resolve, and only `.exe` targets are listed.
+- `Info.plist` is parsed by the `plist` crate; `CFBundleIconFile` cannot be a path.
+- A detected app still has to pass `launch::validate` when it is saved and when it runs.
+
 **Network attacks.** The app makes no network request unless built with `--features updater`
 and the user starts a check. Updates are verified against a public key compiled into the app
 (`docs/RELEASING.md`). The website handles no input and serves a CSP of `default-src 'none'`

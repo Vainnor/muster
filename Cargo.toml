@@ -28,6 +28,7 @@ anyhow = "1.0.104"
 tempfile = "3.27"
 tracing = "0.1.44"
 url = "2.5"
+plist = { version = "1.10", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

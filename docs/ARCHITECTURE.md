@@ -80,6 +80,7 @@ the only source.
 | `thiserror` | core, ui | Typed, matchable errors in libraries (`.claude/rules/rust.md`). |
 | `anyhow` | desktop, web | Top-level error glue in binaries. |
 | `tempfile` | core | Atomic config writes: temp file in the same dir, fsync, rename. Hand-rolling this gets the Windows rename and cleanup cases wrong. |
+| `plist` | core | macOS `Info.plist` files, which are often in Apple's binary format; already in the lockfile through Tauri. The Windows `.lnk` reader is our own: the subset a launcher needs is about 200 lines, and keeping this input boundary in our code puts every bounds check under our tests. |
 | `url` | core | WHATWG URL parsing for launch targets, so the scheme allowlist checks what the OS will actually open. |
 | `tauri` 2 (`tray-icon`) | desktop | The shell. |
 | `tauri-plugin-single-instance` | desktop | A second launch focuses the running app instead of starting another. |

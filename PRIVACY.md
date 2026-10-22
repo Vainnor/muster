@@ -18,7 +18,9 @@ This is the technical privacy statement for the Muster desktop app and website. 
   - Windows: `%APPDATA%\Vainnor\Muster`
   Nothing is uploaded. No passwords, tokens or keys are stored.
 - **App detection reads app metadata only**: names, icons and launch commands from the standard
-  app locations. It never reads your documents, recent files or browser data.
+  app locations (`.desktop` files on Linux, `.app` bundles' `Info.plist` on macOS, Start Menu
+  shortcuts on Windows). It runs when you open or refresh the app list, never on a timer, and
+  keeps the result in memory. It never reads your documents, recent files or browser data.
 - **Logs stay on your machine**, can be turned off, and do not record launch targets, arguments
   or file paths.
 
