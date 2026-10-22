@@ -10,6 +10,7 @@ jobs:
   draft:
     name: Create draft release
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     permissions:
       contents: write
     outputs:
@@ -36,6 +37,7 @@ jobs:
           - { name: Linux x64, os: ubuntu-22.04, args: "", rust_targets: "" }
           - { name: Windows x64, os: windows-latest, args: "", rust_targets: "" }
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     permissions:
       contents: write
     steps:
@@ -44,9 +46,11 @@ jobs:
           persist-credentials: false
       - name: Linux webview dependencies
         if: runner.os == 'Linux'
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
       - name: Extra Rust targets
         if: matrix.rust_targets != ''
         run: rustup target add ${{ matrix.rust_targets }}
@@ -74,6 +78,7 @@ jobs:
     name: Publish SHA-256 checksums
     needs: build
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
