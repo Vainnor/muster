@@ -12,10 +12,14 @@ paths:
 | Cold start to interactive window | < 500 ms |
 | Idle CPU, window open, no input | ~0 % (< 0.1 % averaged over 60 s) |
 | Idle CPU, window closed (tray only) | 0 % (no wakeups beyond the OS event loop) |
-| Memory, window closed (tray only) | < 30 MB RSS for the main process, no webview processes |
+| Memory, window closed (tray only) | < 30 MB RSS for the main process (macOS: < 40 MB footprint), no webview content process |
 | Memory, window open | < 150 MB total including webview processes |
 | App detection, on demand | < 1 s for 500 entries |
 | Installer size | < 15 MB |
+
+On macOS the WebKit framework stays loaded in the main process after the window is destroyed,
+and WebKit's shared GPU and Networking helpers (about 17 MB together) outlive it; only the
+WebContent process exits. Measured on 0.1.0: 34–35 MB footprint, 12 MB of it live heap.
 
 A change that moves a metric past its budget is a bug, and a change that moves one by more
 than 10 % says so in the PR with numbers.
