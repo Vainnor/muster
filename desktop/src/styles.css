@@ -1,0 +1,90 @@
+/* Tokens come from muster-ui via the theme_tokens command. The fallbacks here are the
+   neutral light theme, so the window is readable before the first command returns. */
+:root {
+  --mu-bg: #ffffff;
+  --mu-surface: #f4f4f5;
+  --mu-border: #d4d4d8;
+  --mu-text: #18181b;
+  --mu-muted: #52525b;
+  --mu-accent: #2563eb;
+  --mu-accent-text: #ffffff;
+  --mu-radius: 6px;
+  --mu-space-2: 8px;
+  --mu-space-3: 12px;
+  --mu-space-4: 16px;
+  --mu-space-5: 24px;
+  --mu-text-sm: 13px;
+  --mu-text-base: 14px;
+  --mu-text-xl: 24px;
+  --mu-font: system-ui, sans-serif;
+  --mu-heading-transform: none;
+  --mu-duration: 150ms;
+  --mu-focus-ring: 0 0 0 2px #2563eb;
+  color-scheme: var(--mu-color-scheme, light);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--mu-bg);
+  color: var(--mu-text);
+  font-family: var(--mu-font);
+  font-size: var(--mu-text-base);
+}
+
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mu-space-4);
+  padding: var(--mu-space-5);
+}
+
+.shell__header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--mu-space-3);
+}
+
+.shell__title {
+  margin: 0;
+  font-size: var(--mu-text-xl);
+  text-transform: var(--mu-heading-transform);
+}
+
+.shell__meta,
+.shell__empty {
+  color: var(--mu-muted);
+  font-size: var(--mu-text-sm);
+}
+
+.shell__search {
+  width: 100%;
+  padding: var(--mu-space-2) var(--mu-space-3);
+  border: 1px solid var(--mu-border);
+  border-radius: var(--mu-radius);
+  background: var(--mu-surface);
+  color: var(--mu-text);
+  font: inherit;
+  transition: box-shadow var(--mu-duration);
+}
+
+.shell__search:focus-visible {
+  outline: none;
+  box-shadow: var(--mu-focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0ms !important;
+  }
+}
