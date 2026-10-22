@@ -15,7 +15,7 @@ The theme format and token list are `docs/THEMING.md`.
   `muster-ui`. No hex, `rgb()`, named color or pixel radius in a component stylesheet. A missing
   token is added to `muster-ui` and `docs/THEMING.md`, not inlined.
 - Spacing scale: `--mu-space-1..8` (4, 8, 12, 16, 24, 32, 48, 64 px, scaled by density).
-  Type scale: `--mu-text-xs..2xl` (12, 13, 14, 16, 20, 24 px). Nothing in between.
+  Type scale: `--mu-text-{xs,sm,base,md,lg,xl}` (12, 13, 14, 16, 20, 24 px). Nothing in between.
 - A theme changes token values, never layout or behavior.
 
 ## Accessibility (WCAG 2.2 AA)
