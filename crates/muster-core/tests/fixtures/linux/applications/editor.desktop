@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Editor
+Exec=/usr/bin/editor --new-window %F
+Icon=editor

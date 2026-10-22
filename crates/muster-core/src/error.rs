@@ -1,0 +1,46 @@
+use std::path::PathBuf;
+
+/// Every failure `muster-core` reports. Variants are stable so callers can map them to
+/// user-facing messages without parsing text.
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("launch target is invalid: {0}")]
+    InvalidTarget(#[from] crate::launch::TargetError),
+
+    #[error("group is invalid: {0}")]
+    InvalidGroup(#[from] crate::groups::GroupError),
+
+    #[error("theme is invalid: {0}")]
+    InvalidTheme(#[from] crate::themes::ThemeError),
+
+    #[error("config file {path} could not be read or written")]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("config file is not valid: {0}")]
+    InvalidConfig(String),
+
+    #[error("{0} is not implemented yet")]
+    NotImplemented(&'static str),
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl Error {
+    /// A short, stable code for the variant, safe to show to the user or send to the webview.
+    /// Never includes paths or other user data.
+    #[must_use]
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::InvalidTarget(_) => "invalid_target",
+            Self::InvalidGroup(_) => "invalid_group",
+            Self::InvalidTheme(_) => "invalid_theme",
+            Self::Io { .. } => "io",
+            Self::InvalidConfig(_) => "invalid_config",
+            Self::NotImplemented(_) => "not_implemented",
+        }
+    }
+}

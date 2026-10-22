@@ -1,0 +1,4 @@
+[Desktop Entry]
+Type=Application
+Name=Quoted
+Exec="/opt/My Tools/run" --title "a b" %%literal
