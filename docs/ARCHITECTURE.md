@@ -33,13 +33,15 @@ without Node or the webview system libraries; `--workspace` builds everything.
 The webview never touches the filesystem or a process. It asks by id; a command validates its
 arguments in Rust and calls core. `library::Library` owns the rules: the merged app list
 (detected `d:<key>` plus manual `m:<slug>`), saving groups (pinning the detected apps they use
-into the config), the first-run confirmation, and planning a run. `state::AppState` applies each
+into the config), which targets need the user's approval, and planning a run. `state::AppState` applies each
 change to a copy, writes it to disk, and only then keeps it.
 
 A manual app, or a group entry that is manual or has overrides, runs only if its exact target
-is in `config.approved`. Planning one that is not fails with `Error::NeedsApproval`; the
-command then shows the pending targets in a native dialog (`desktop/src-tauri/src/approval.rs`)
-and, on OK, calls `Library::approve` before planning again.
+is in `config.approved`. `launch_app` and `run_group` first ask core for the pending targets
+(`Library::pending_for_app`, `pending_for_group`). If there are any, they show them in a native
+dialog (`desktop/src-tauri/src/approval.rs`) and call `Library::approve` only when the user
+presses Run. Then they plan, and planning checks the approvals again (`Error::NeedsApproval`),
+so a library change while the dialog was open cannot run something it did not show.
 
 Launching re-validates the target (`launch::plan`), spawns it detached with null stdio, and hands
 the child to a small reaper thread so it never becomes a zombie and nothing polls. A group run

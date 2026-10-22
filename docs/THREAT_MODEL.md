@@ -67,7 +67,13 @@ reach the network.
 - Approval is per target, not per group: `config.approved` holds the exact targets the user
   OK'd. Changing an entry's arguments or folder, or a pinned app's target changing on a rescan,
   makes a different target that needs approving again. The dialog shows every path and
-  argument quoted and escaped (`launch::describe`), and refuses a list too long to read in full.
+  argument quoted and escaped, and links in the parsed form the opener receives (an IDN host
+  as punycode) (`launch::describe`). Each dialog is at most 1 KiB of text; a longer list is
+  split across dialogs and a single longer target is refused.
+- "Don't run" is the first button, the default on macOS and Windows, so a stray Return key
+  cannot approve; only the "Run" button does. GTK's default button is not verified. After the
+  user declines, Muster refuses new approval requests for 5 seconds, and only one dialog is
+  open at a time.
 - Overrides on detected apps need approval too: arguments for a detected shell or PowerShell
   are a command line.
 
@@ -95,6 +101,8 @@ file, bundle or shortcut into a scanned folder, so detection treats them as untr
 - `Info.plist` is parsed by the `plist` crate; `CFBundleIconFile` cannot be a path. The parser
   reads through a 1 MiB read budget (`PLIST_READ_BUDGET`): a binary plist can point at one
   object many times, so a file of a few hundred bytes would otherwise expand exponentially.
+  The parsed value is dropped without recursion (`drop_flat`), since a file under the cap can
+  nest about 40,000 levels and recursive drop would overflow the scan thread's stack.
 - A detected app is validated by `launch::plan` each time it runs; a pinned copy in the config
   is not validated when it is pinned.
 
@@ -113,6 +121,6 @@ plus `nosniff`, `no-referrer`, COOP/CORP `same-origin`, HSTS and `frame-ancestor
 - Builds are unsigned for now, so the OS cannot vouch for the publisher. Checksums cover
   tampering in transit only if the user checks them (`docs/RELEASING.md`).
 - Muster runs whatever the user tells it to. Protecting the user from a program they chose to add
-  is out of scope; the confirmation for manual entries is the only speed bump.
+  is out of scope; the approval dialog for manual entries and overrides is the only speed bump.
 - Anything with write access to the user's config dir can change what Muster launches. That
   attacker can already run code as the user.

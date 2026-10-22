@@ -266,7 +266,11 @@ pub fn describe(target: &LaunchTarget) -> String {
             }
         }
         LaunchTarget::AppBundle { path } => format!("open {:?}", path.display().to_string()),
-        LaunchTarget::Url { url } => format!("open {url:?}"),
+        // The parsed form is what the opener receives: an IDN host shows as punycode.
+        LaunchTarget::Url { url } => match parse_url(url) {
+            Ok(parsed) => format!("open {:?}", parsed.as_str()),
+            Err(_) => format!("invalid link {url:?}"),
+        },
     }
 }
 
@@ -547,7 +551,15 @@ mod tests {
             describe(&LaunchTarget::Url {
                 url: "https://a.example".into()
             }),
-            r#"open "https://a.example""#
+            r#"open "https://a.example/""#
+        );
+        // Cyrillic "а" in place of the Latin one: shown as the punycode host that opens.
+        let lookalike = describe(&LaunchTarget::Url {
+            url: "https://ex\u{430}mple.com".into(),
+        });
+        assert!(
+            lookalike.starts_with(r#"open "https://xn--"#),
+            "{lookalike}"
         );
     }
 }

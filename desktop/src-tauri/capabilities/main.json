@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "main",
-  "description": "The main launcher window. Only Muster's own commands, each granted by name, plus core:event listen/unlisten so the UI can receive launch-failed events from group runs (it cannot emit). No core:default, no shell, fs or opener plugin. Autostart and global shortcuts are driven from Rust and have no JS permission.",
+  "description": "The main launcher window. Only Muster's own commands, each granted by name, plus core:event listen/unlisten so the UI can receive launch-failed events from group runs (it cannot emit). No core:default, no shell, fs or opener plugin. Autostart, global shortcuts and the approval dialog are driven from Rust and have no JS permission.",
   "windows": [
     "main"
   ],

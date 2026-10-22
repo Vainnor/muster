@@ -33,6 +33,7 @@ The theme format and token list are `docs/THEMING.md`.
 - **Search-first**: focus lands in the search field; typing filters immediately; `Enter`
   launches the first match.
 - **Keyboard-first**: every action has a shortcut; `Escape` clears, then closes.
-- **No modal clutter**: one confirmation exists (first run of a group with manual entries).
+- **No modal clutter**: one confirmation exists, the native approval dialog before a manual app
+  or an overridden group entry first runs.
   Everything else is inline and undoable.
 - Settings for non-technical users: presets with live preview first, the editor second.

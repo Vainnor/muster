@@ -31,6 +31,10 @@ impl CommandError {
         code: "cancelled",
         message: "Nothing was started.",
     };
+    pub(crate) const COOLING_DOWN: Self = Self {
+        code: "busy",
+        message: "You just said no. Wait a few seconds before asking Muster again.",
+    };
     pub(crate) const BUSY: Self = Self {
         code: "busy",
         message: "Answer the open Muster dialog first.",
