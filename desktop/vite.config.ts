@@ -14,5 +14,6 @@ export default defineConfig({
     assetsInlineLimit: 0,
     sourcemap: false,
   },
-  test: { environment: "node", include: ["src/**/*.test.ts"] },
+  // Logic tests run in node; component tests opt into jsdom with a file comment.
+  test: { environment: "node", include: ["src/**/*.test.ts", "src/**/*.test.tsx"] },
 });

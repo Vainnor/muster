@@ -4,17 +4,25 @@ A small, fast desktop app launcher for Windows, macOS and Linux. Muster finds th
 machine and lets you launch them one at a time, or in **groups**: put your editor, terminal and
 browser in a "Work" group and start all of them with one click.
 
-> **Status: early scaffold.** Detection, launching and groups are not implemented yet. See
-> [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the plan and what exists today.
+> **Status: early preview.** Not released yet; builds are unsigned.
 
-## Planned features
+## Features
 
-- Finds installed apps automatically; add any program, script or web link by hand.
-- Groups: launch several apps with one button, in order, with optional delays, per-app arguments
-  and working directory. Close a whole group again.
-- Tray icon, start on login and a global hotkey per group (all optional).
-- Themes: light, dark or follow your system, presets (Nord, Gruvbox, Catppuccin, Solarized,
-  High Contrast, Vainnor), a theme editor, and import/export.
+Working now:
+
+- Finds installed apps automatically (`.desktop` entries on Linux, `.app` bundles on macOS,
+  Start Menu shortcuts on Windows); add any program, script or web link by hand.
+- Search-first launcher: type to filter, arrow keys to move, Enter to start, Escape to close.
+- Groups: launch several apps with one action, in order, with optional delays, per-app
+  arguments and working folder. A group that runs something you added by hand asks you to
+  confirm the first time, listing every program it will start.
+- Tray icon; closing the window keeps Muster in the tray.
+
+Planned:
+
+- Close a whole group again; a global hotkey per group; start on login (optional).
+- Themes: light, dark or follow your system and presets (Nord, Gruvbox, Catppuccin, Solarized,
+  High Contrast, Vainnor) work now; a theme editor and import/export are planned.
 - Private by default: no telemetry, no account, no network access unless you press "check for
   updates". See [PRIVACY.md](PRIVACY.md).
 - Light on resources: near-zero CPU when idle; closing the window frees the web view.

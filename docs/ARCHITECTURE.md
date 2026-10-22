@@ -20,17 +20,25 @@ without Node or the webview system libraries; `--workspace` builds everything.
 ## Data flow
 
 ```
- React UI (desktop/src)                 Tauri shell (muster-desktop)          muster-core
- ─────────────────────                  ────────────────────────────          ───────────
- lib/ipc.ts  invoke("app_info") ──IPC──▶ commands::app_info ────────────────▶ info::app_info
-             invoke("theme_tokens",id) ▶ commands::theme_tokens ─▶ muster-ui ─▶ themes::preset
-       ◀── JSON { name, value }[] ─────  CommandError { code, message } on failure
- lib/theme.ts applyTokens → document.documentElement.style (only --mu-* names accepted)
+ React UI (desktop/src)            Tauri shell (muster-desktop)            muster-core
+ ─────────────────────             ────────────────────────────            ───────────
+ lib/ipc.ts  list_apps ──IPC──▶ commands ─▶ state::AppState ─────▶ library::Library
+             save_group(draft)           (Mutex, saves every change    ├ detect::* (on demand,
+             run_group(id)                atomically via store::save)  │  spawn_blocking)
+             launch_app(id)                                            ├ groups::plan_group
+       ◀── AppView / GroupView JSON ──   launcher::start / run_steps ◀─┤ launch::plan → launch
+       ◀── "launch-failed" event ─────   (reaper thread per child)     └ store::{load, save}
 ```
 
-The webview never touches the filesystem or a process. It asks; a command validates its arguments
-in Rust and calls core. Launching will follow the same path: the UI sends an id, the shell loads
-the entry from the store, and `launch::plan` re-validates the target before anything spawns.
+The webview never touches the filesystem or a process. It asks by id; a command validates its
+arguments in Rust and calls core. `library::Library` owns the rules: the merged app list
+(detected `d:<key>` plus manual `m:<slug>`), saving groups (pinning the detected apps they use
+into the config), the first-run confirmation, and planning a run. `state::AppState` applies each
+change to a copy, writes it to disk, and only then keeps it.
+
+Launching re-validates the target (`launch::plan`), spawns it detached with null stdio, and hands
+the child to a small reaper thread so it never becomes a zombie and nothing polls. A group run
+sleeps through its delays on a thread that lives for that run only.
 
 The website uses the same presets: `GET /theme.css` renders the light and dark presets through
 `muster-ui`, switched by `prefers-color-scheme`.
@@ -90,6 +98,7 @@ the only source.
 | `topcoat` `=0.10.0` | web | Server-rendered site; exact pin because the crate is pre-1.0 and the CLI must match. Features limited to router, view, serve, discover, asset, tailwind, ui. |
 | `tokio`, `http` | web | Topcoat's runtime and header types. |
 | React 19, Vite, TypeScript, vitest | desktop UI | See Phase 0. `@tauri-apps/api` is the only runtime package besides React. |
+| jsdom, Testing Library (dev only) | desktop UI tests | Component tests for keyboard behavior and the confirmation flow, against Tauri's own `mockIPC`. |
 
 Licenses: the allowlist includes MPL-2.0 for `cssparser`, `selectors` and `option-ext`, which
 Tauri's build tooling and `dirs` pull in. MPL is file-level copyleft and places no obligation on
