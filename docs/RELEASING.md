@@ -6,14 +6,15 @@
    in `desktop/src-tauri/tauri.conf.json`. Run `cargo check` so `Cargo.lock` follows. Commit
    `chore: release vX.Y.Z`.
 2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-3. `.github/workflows/release.yml` creates a draft release, builds on macOS (universal), Linux
-   (x64) and Windows (x64) with `tauri-apps/tauri-action`, uploads the bundles, then downloads
-   them all and attaches `SHA256SUMS.txt`.
+3. `.github/workflows/release.yml` builds on macOS (universal), Linux (x64) and Windows (x64)
+   with `pnpm tauri build` and uploads the bundles as workflow artifacts. A publish job then
+   downloads them, writes `SHA256SUMS.txt` and creates the draft release with all of them.
 4. Install from the draft on each OS you can reach, check the checksums, write the notes, and
    publish. The website's download button points at `releases/latest`, so publishing is the
    switch.
 
-The draft step needs `contents: write`; every other job in the repo is read-only.
+Only the publish job has `contents: write`, and it runs no build code; the build jobs and every
+other job in the repo are read-only.
 
 ## Icons
 
