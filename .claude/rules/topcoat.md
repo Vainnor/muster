@@ -24,7 +24,7 @@ branch docs (`llms.txt`, `docs/`) are the source of truth, not memory; check the
   `web/styles.css`. Do not load the font the UI theme names; we use system fonts.
 - Internal links use `href!(handler)`; external links are plain strings.
 - Every response passes the security-headers layer (`web/src/security.rs`).
-- `topcoat fmt` after `cargo fmt`; CI runs `topcoat fmt --check`.
+- `topcoat fmt web/src` after `cargo fmt` (a bare `topcoat fmt` also scans `target/` and fails); CI runs `topcoat fmt --check web/src`.
 
 ## Pinning and upgrades
 - `topcoat = "=X.Y.Z"` exact, in both `[dependencies]` and `[build-dependencies]`, matching the

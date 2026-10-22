@@ -24,7 +24,7 @@
 - `cargo test --workspace` on all three
 - `cargo deny check` and `cargo audit`
 - desktop UI: `pnpm typecheck`, `pnpm test`, `pnpm build`, `pnpm audit --audit-level=high`
-- `topcoat fmt --check` for `web/`
+- `topcoat fmt --check web/src` for `web/`
 
 A red job is fixed, not re-run until green. A check is never disabled to merge.
 

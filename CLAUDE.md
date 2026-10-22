@@ -57,7 +57,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo deny check && cargo audit
 pnpm --dir desktop typecheck && pnpm --dir desktop test   # desktop UI changes
-topcoat fmt --check                                       # web/ changes
+topcoat fmt --check web/src                                       # web/ changes
 ```
 
 `desktop/dist` must exist before the desktop crate compiles: run `pnpm --dir desktop build` once

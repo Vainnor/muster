@@ -29,7 +29,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo deny check && cargo audit
 pnpm --dir desktop typecheck && pnpm --dir desktop test
-topcoat fmt --check
+topcoat fmt --check web/src
 ```
 
 ## Commits and PRs
