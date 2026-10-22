@@ -1,0 +1,25 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "catppuccin",
+  "name": "Catppuccin Mocha",
+  "mode": "dark",
+  "colors": {
+    "background": "#1e1e2e",
+    "surface": "#313244",
+    "border": "#45475a",
+    "text": "#cdd6f4",
+    "muted_text": "#a6adc8",
+    "accent": "#cba6f7",
+    "accent_text": "#1e1e2e",
+    "danger": "#f38ba8",
+    "success": "#a6e3a1",
+    "warning": "#f9e2af"
+  },
+  "radius": 8,
+  "density": "comfortable",
+  "font": "system-sans",
+  "icon_size": 32,
+  "layout": "grid",
+  "motion": true,
+  "heading_case": "normal"
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "light",
+  "name": "Light",
+  "mode": "light",
+  "colors": {
+    "background": "#ffffff",
+    "surface": "#f4f4f5",
+    "border": "#d4d4d8",
+    "text": "#18181b",
+    "muted_text": "#52525b",
+    "accent": "#2563eb",
+    "accent_text": "#ffffff",
+    "danger": "#b91c1c",
+    "success": "#15803d",
+    "warning": "#a16207"
+  },
+  "radius": 6,
+  "density": "comfortable",
+  "font": "system-sans",
+  "icon_size": 32,
+  "layout": "grid",
+  "motion": true,
+  "heading_case": "normal"
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "nord",
+  "name": "Nord",
+  "mode": "dark",
+  "colors": {
+    "background": "#2e3440",
+    "surface": "#3b4252",
+    "border": "#4c566a",
+    "text": "#eceff4",
+    "muted_text": "#c0c8d6",
+    "accent": "#88c0d0",
+    "accent_text": "#2e3440",
+    "danger": "#bf616a",
+    "success": "#a3be8c",
+    "warning": "#ebcb8b"
+  },
+  "radius": 4,
+  "density": "comfortable",
+  "font": "system-sans",
+  "icon_size": 32,
+  "layout": "grid",
+  "motion": true,
+  "heading_case": "normal"
+}

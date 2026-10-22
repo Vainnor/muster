@@ -1,0 +1,25 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "gruvbox",
+  "name": "Gruvbox",
+  "mode": "dark",
+  "colors": {
+    "background": "#282828",
+    "surface": "#32302f",
+    "border": "#504945",
+    "text": "#ebdbb2",
+    "muted_text": "#bdae93",
+    "accent": "#fabd2f",
+    "accent_text": "#282828",
+    "danger": "#fb4934",
+    "success": "#b8bb26",
+    "warning": "#fe8019"
+  },
+  "radius": 2,
+  "density": "comfortable",
+  "font": "system-sans",
+  "icon_size": 32,
+  "layout": "grid",
+  "motion": true,
+  "heading_case": "normal"
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "high-contrast",
+  "name": "High Contrast",
+  "mode": "dark",
+  "colors": {
+    "background": "#000000",
+    "surface": "#0a0a0a",
+    "border": "#ffffff",
+    "text": "#ffffff",
+    "muted_text": "#e5e5e5",
+    "accent": "#ffd400",
+    "accent_text": "#000000",
+    "danger": "#ff6b6b",
+    "success": "#5dff8a",
+    "warning": "#ffd400"
+  },
+  "radius": 2,
+  "density": "spacious",
+  "font": "system-sans",
+  "icon_size": 40,
+  "layout": "list",
+  "motion": false,
+  "heading_case": "normal"
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "vainnor",
+  "name": "Vainnor",
+  "description": "PROVISIONAL palette: Nord-style dark base with a lilac accent. Final colors are not chosen yet; every color lives in this file.",
+  "mode": "dark",
+  "colors": {
+    "background": "#2e3440",
+    "surface": "#353c4a",
+    "border": "#4c566a",
+    "text": "#e5e9f0",
+    "muted_text": "#b8c0cf",
+    "accent": "#c8b4f0",
+    "accent_text": "#2e3440",
+    "danger": "#e8a0a8",
+    "success": "#b4d8a8",
+    "warning": "#f0d8a0"
+  },
+  "radius": 2,
+  "density": "compact",
+  "font": "system-mono",
+  "icon_size": 24,
+  "layout": "list",
+  "motion": false,
+  "heading_case": "lowercase",
+  "wordmark": "^v█"
+}

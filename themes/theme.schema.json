@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://muster.vainnor.com/theme.schema.json",
+  "title": "Muster theme",
+  "description": "A Muster theme. Values are colors, bounded lengths and keywords only; raw CSS, URLs and @import are not representable. The app enforces the same rules in crates/muster-core/src/themes.rs and refuses files over 16 KiB.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "mode",
+    "colors",
+    "radius",
+    "density",
+    "font",
+    "icon_size",
+    "layout",
+    "motion"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "./theme.schema.json"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,40}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 200,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+    },
+    "mode": {
+      "enum": [
+        "light",
+        "dark"
+      ]
+    },
+    "colors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "background",
+        "surface",
+        "border",
+        "text",
+        "muted_text",
+        "accent",
+        "accent_text",
+        "danger",
+        "success",
+        "warning"
+      ],
+      "properties": {
+        "background": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+        },
+        "surface": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+        },
+        "border": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+        },
+        "text": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+        },
+        "muted_text": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+        },
+        "accent": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+        },
+        "accent_text": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+        },
+        "danger": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+        },
+        "success": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+        },
+        "warning": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$"
+        }
+      }
+    },
+    "radius": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 24,
+      "description": "Corner radius in px."
+    },
+    "density": {
+      "enum": [
+        "compact",
+        "comfortable",
+        "spacious"
+      ]
+    },
+    "font": {
+      "enum": [
+        "system-sans",
+        "system-mono",
+        "bundled"
+      ]
+    },
+    "icon_size": {
+      "type": "integer",
+      "minimum": 16,
+      "maximum": 64,
+      "description": "App icon size in px."
+    },
+    "layout": {
+      "enum": [
+        "list",
+        "grid"
+      ]
+    },
+    "motion": {
+      "type": "boolean",
+      "description": "false disables transitions; prefers-reduced-motion always does."
+    },
+    "heading_case": {
+      "enum": [
+        "normal",
+        "lowercase"
+      ],
+      "default": "normal"
+    },
+    "wordmark": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]*$",
+      "description": "Short text mark shown beside the app name."
+    }
+  }
+}

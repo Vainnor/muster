@@ -1,0 +1,25 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "solarized",
+  "name": "Solarized Light",
+  "mode": "light",
+  "colors": {
+    "background": "#fdf6e3",
+    "surface": "#eee8d5",
+    "border": "#d3cbb7",
+    "text": "#073642",
+    "muted_text": "#4f6268",
+    "accent": "#1f6fa8",
+    "accent_text": "#fdf6e3",
+    "danger": "#b02a28",
+    "success": "#5f6f00",
+    "warning": "#8a5d00"
+  },
+  "radius": 4,
+  "density": "comfortable",
+  "font": "system-sans",
+  "icon_size": 32,
+  "layout": "grid",
+  "motion": true,
+  "heading_case": "normal"
+}

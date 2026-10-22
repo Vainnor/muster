@@ -1,0 +1,25 @@
+{
+  "$schema": "./theme.schema.json",
+  "id": "dark",
+  "name": "Dark",
+  "mode": "dark",
+  "colors": {
+    "background": "#18181b",
+    "surface": "#232326",
+    "border": "#3f3f46",
+    "text": "#f4f4f5",
+    "muted_text": "#a1a1aa",
+    "accent": "#60a5fa",
+    "accent_text": "#0b1220",
+    "danger": "#f87171",
+    "success": "#4ade80",
+    "warning": "#facc15"
+  },
+  "radius": 6,
+  "density": "comfortable",
+  "font": "system-sans",
+  "icon_size": 32,
+  "layout": "grid",
+  "motion": true,
+  "heading_case": "normal"
+}
