@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "The main launcher window. Only Muster's own commands, each granted by name; no core:default, no shell, fs or opener plugin. Autostart and global shortcuts are driven from Rust and have no JS permission.",
+  "windows": ["main"],
+  "permissions": ["allow-app-info", "allow-theme-tokens"]
+}

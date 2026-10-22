@@ -3,7 +3,7 @@ resolver = "3"
 members = [
   "crates/muster-core",
   "crates/muster-ui",
-  # "desktop/src-tauri",
+  "desktop/src-tauri",
   # "web",
 ]
 default-members = ["crates/muster-core", "crates/muster-ui"]

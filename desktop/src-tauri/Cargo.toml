@@ -1,0 +1,40 @@
+[package]
+name = "muster-desktop"
+description = "Muster's Tauri v2 desktop shell: window, tray, single instance, and the commands the UI calls."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+default-run = "muster"
+
+[[bin]]
+name = "muster"
+path = "src/main.rs"
+
+[lib]
+name = "muster_desktop"
+path = "src/lib.rs"
+
+[features]
+# Opt-in auto-update support. Off by default; see docs/RELEASING.md § Updater.
+updater = ["dep:tauri-plugin-updater"]
+
+[dependencies]
+muster-core.workspace = true
+muster-ui.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+tauri = { version = "2.12", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2.5"
+tauri-plugin-autostart = "2.7"
+tauri-plugin-global-shortcut = "2.4"
+tauri-plugin-updater = { version = "2.14", optional = true }
+
+[build-dependencies]
+tauri-build = { version = "2.7", features = [] }
+
+[lints]
+workspace = true
