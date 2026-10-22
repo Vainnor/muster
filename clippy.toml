@@ -1,0 +1,7 @@
+# Tests may unwrap and index; production code may not (workspace lints).
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-indexing-slicing-in-tests = true
+allow-panic-in-tests = true
+too-many-arguments-threshold = 7
+doc-valid-idents = ["LaunchServices", "WebView2", "WebKitGTK", "SmartScreen", "AppIndicator", ".."]

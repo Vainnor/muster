@@ -1,0 +1,5 @@
+# Pinned so local builds, CI and release artifacts use the same compiler. Bump deliberately.
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"
