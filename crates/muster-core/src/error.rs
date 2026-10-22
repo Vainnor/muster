@@ -23,6 +23,15 @@ pub enum Error {
     #[error("config file is not valid: {0}")]
     InvalidConfig(String),
 
+    #[error("name is empty, too long or has control characters")]
+    InvalidName,
+
+    #[error("there is no app or group with that id")]
+    UnknownId,
+
+    #[error("the limit for this kind of item is reached")]
+    LimitReached,
+
     #[error("the app could not be started")]
     Launch {
         #[source]
@@ -46,6 +55,9 @@ impl Error {
             Self::InvalidTheme(_) => "invalid_theme",
             Self::Io { .. } => "io",
             Self::InvalidConfig(_) => "invalid_config",
+            Self::InvalidName => "invalid_name",
+            Self::UnknownId => "unknown_id",
+            Self::LimitReached => "limit_reached",
             Self::Launch { .. } => "launch_failed",
             Self::NoOpener => "no_opener",
         }

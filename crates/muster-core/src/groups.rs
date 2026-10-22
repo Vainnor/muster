@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
-use crate::launch::{LaunchPlan, LaunchTarget, TargetError};
+use crate::launch::{LaunchPlan, LaunchTarget, MAX_ARG_LEN, MAX_ARGS, TargetError};
 use crate::model::{AppEntry, AppId, Source};
 
 pub const MAX_GROUP_NAME_LEN: usize = 64;
@@ -38,6 +38,7 @@ pub struct Group {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GroupEntry {
     pub app: AppId,
     /// Replaces the app's own arguments when set.
@@ -60,6 +61,10 @@ pub enum GroupError {
     DelayTooLong,
     #[error("group refers to an app that does not exist")]
     UnknownApp(AppId),
+    #[error("an entry's arguments are too many, too long or contain NUL")]
+    BadArguments,
+    #[error("an entry's working directory must be an absolute path without `..`")]
+    BadWorkingDir,
     #[error("group runs a manually added entry and has not been confirmed")]
     NeedsConfirmation,
 }
@@ -129,6 +134,22 @@ impl Group {
         for entry in &self.entries {
             if entry.delay_ms > MAX_DELAY_MS {
                 return Err(GroupError::DelayTooLong);
+            }
+            if let Some(args) = &entry.args
+                && (args.len() > MAX_ARGS
+                    || args
+                        .iter()
+                        .any(|a| a.len() > MAX_ARG_LEN || a.contains('\0')))
+            {
+                return Err(GroupError::BadArguments);
+            }
+            if let Some(cwd) = &entry.cwd
+                && (!cwd.is_absolute()
+                    || cwd
+                        .components()
+                        .any(|c| matches!(c, std::path::Component::ParentDir)))
+            {
+                return Err(GroupError::BadWorkingDir);
             }
             if !known.contains(&entry.app) {
                 return Err(GroupError::UnknownApp(entry.app.clone()));
@@ -255,7 +276,10 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let exe = dir.path().join("tool");
         std::fs::write(&exe, "").unwrap();
-        let apps = [program_app("a", &exe, Source::Detected), app("web", Source::Detected)];
+        let apps = [
+            program_app("a", &exe, Source::Detected),
+            app("web", Source::Detected),
+        ];
         let mut first = entry("a");
         first.args = Some(vec!["--work".into()]);
         first.cwd = Some(dir.path().into());
@@ -267,20 +291,56 @@ mod tests {
         assert_eq!(steps.len(), 3);
         assert_eq!(
             steps[0].plan,
-            Ok(LaunchPlan::Spawn { program: exe.clone(), args: vec!["--work".into()], cwd: Some(dir.path().into()) })
+            Ok(LaunchPlan::Spawn {
+                program: exe.clone(),
+                args: vec!["--work".into()],
+                cwd: Some(dir.path().into())
+            })
         );
         assert_eq!(steps[1].delay, Duration::from_millis(1500));
         assert!(matches!(steps[1].plan, Ok(LaunchPlan::OpenUrl { .. })));
         assert_eq!(
             steps[2].plan,
-            Ok(LaunchPlan::Spawn { program: exe, args: vec!["--default".into()], cwd: None })
+            Ok(LaunchPlan::Spawn {
+                program: exe,
+                args: vec!["--default".into()],
+                cwd: None
+            })
         );
+    }
+
+    #[test]
+    fn rejects_bad_argument_and_folder_overrides() {
+        let apps = [app("a", Source::Detected)];
+        let mut e = entry("a");
+        e.args = Some(vec!["x".into(); MAX_ARGS + 1]);
+        assert_eq!(
+            group(vec![e.clone()]).validate(&apps),
+            Err(GroupError::BadArguments)
+        );
+        e.args = Some(vec!["a\0b".into()]);
+        assert_eq!(
+            group(vec![e.clone()]).validate(&apps),
+            Err(GroupError::BadArguments)
+        );
+        e.args = None;
+        for cwd in ["relative", "/a/../b"] {
+            e.cwd = Some(cwd.into());
+            assert_eq!(
+                group(vec![e.clone()]).validate(&apps),
+                Err(GroupError::BadWorkingDir),
+                "{cwd}"
+            );
+        }
     }
 
     #[test]
     fn plan_keeps_going_past_a_missing_target() {
         let dir = tempfile::tempdir().unwrap();
-        let apps = [program_app("gone", &dir.path().join("gone"), Source::Detected), app("web", Source::Detected)];
+        let apps = [
+            program_app("gone", &dir.path().join("gone"), Source::Detected),
+            app("web", Source::Detected),
+        ];
         let steps = plan_group(&group(vec![entry("gone"), entry("web")]), &apps).unwrap();
         assert_eq!(steps[0].plan, Err(TargetError::NotFound));
         assert!(steps[1].plan.is_ok());

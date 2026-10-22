@@ -436,7 +436,10 @@ mod tests {
     }
 
     fn parts(cmd: &std::process::Command) -> (String, Vec<String>) {
-        let args = cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+        let args = cmd
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
         (cmd.get_program().to_string_lossy().into_owned(), args)
     }
 
@@ -448,7 +451,13 @@ mod tests {
             cwd: Some("/tmp".into()),
         };
         let cmd = command(&plan, None).unwrap();
-        assert_eq!(parts(&cmd), ("/opt/app".into(), vec!["a b".into(), "; rm -rf ~".into(), "$HOME".into()]));
+        assert_eq!(
+            parts(&cmd),
+            (
+                "/opt/app".into(),
+                vec!["a b".into(), "; rm -rf ~".into(), "$HOME".into()]
+            )
+        );
         assert_eq!(cmd.get_current_dir(), Some(Path::new("/tmp")));
     }
 
@@ -459,9 +468,17 @@ mod tests {
         };
         assert_eq!(
             parts(&command(&url, Some(&opener())).unwrap()),
-            ("/usr/bin/opener".into(), vec!["--flag".into(), "https://example.com/a%20b?q=%22x%22".into()])
+            (
+                "/usr/bin/opener".into(),
+                vec![
+                    "--flag".into(),
+                    "https://example.com/a%20b?q=%22x%22".into()
+                ]
+            )
         );
-        let bundle = LaunchPlan::OpenBundle { path: "/Applications/A.app".into() };
+        let bundle = LaunchPlan::OpenBundle {
+            path: "/Applications/A.app".into(),
+        };
         assert_eq!(
             parts(&command(&bundle, Some(&opener())).unwrap()).1,
             ["--flag", "/Applications/A.app"]
@@ -470,7 +487,9 @@ mod tests {
 
     #[test]
     fn missing_opener_is_an_error_not_a_fallback() {
-        let url = LaunchPlan::OpenUrl { url: Url::parse("https://example.com").unwrap() };
+        let url = LaunchPlan::OpenUrl {
+            url: Url::parse("https://example.com").unwrap(),
+        };
         assert!(matches!(command(&url, None), Err(crate::Error::NoOpener)));
     }
 
