@@ -23,8 +23,14 @@ pub enum Error {
     #[error("config file is not valid: {0}")]
     InvalidConfig(String),
 
-    #[error("{0} is not implemented yet")]
-    NotImplemented(&'static str),
+    #[error("the app could not be started")]
+    Launch {
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("no program is available to open links and bundles")]
+    NoOpener,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -40,7 +46,8 @@ impl Error {
             Self::InvalidTheme(_) => "invalid_theme",
             Self::Io { .. } => "io",
             Self::InvalidConfig(_) => "invalid_config",
-            Self::NotImplemented(_) => "not_implemented",
+            Self::Launch { .. } => "launch_failed",
+            Self::NoOpener => "no_opener",
         }
     }
 }

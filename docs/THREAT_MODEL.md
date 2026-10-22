@@ -49,8 +49,10 @@ So even injected script can ask for app info and theme tokens, and nothing else.
   `https` or `mailto`, and a host for http(s).
 - Validation runs when a target is saved and again in `launch::plan` right before launch, so a
   config edited on disk is checked too.
-- Processes start with an argument array (`std::process::Command`) or the OS open API. No shell,
-  no elevation.
+- Processes start with an argument array (`std::process::Command`), null stdio and their own
+  process group. Bundles and URLs go to a fixed opener as one argument: `/usr/bin/open` on
+  macOS, `xdg-open` from `PATH` on Linux, `%SystemRoot%\System32\rundll32.exe
+  url.dll,FileProtocolHandler` on Windows. No shell, no elevation.
 - A group with a manually added entry asks for confirmation before its first run.
 - Linux `Exec` lines will be tokenized by a field-code parser, with unknown codes dropped.
 

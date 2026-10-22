@@ -137,10 +137,90 @@ pub fn plan(target: &LaunchTarget) -> Result<LaunchPlan, TargetError> {
     })
 }
 
-/// Executes a plan. Not implemented yet: the per-OS spawners (`CreateProcessW`,
-/// LaunchServices, `posix_spawn` via `std::process::Command`) land with the launch feature.
-pub fn launch(_plan: &LaunchPlan) -> crate::Result<()> {
-    Err(crate::Error::NotImplemented("launching"))
+/// Starts a plan detached from Muster: no inherited stdio, its own process group on Unix, so
+/// it keeps running after Muster exits and does not receive Muster's terminal signals.
+///
+/// Returns the child so the caller can reap it (`Child::wait` on a blocking thread) instead of
+/// leaving a zombie or polling. Bundles and URLs go through the OS opener named by
+/// [`opener`], always with an argument array.
+pub fn launch(plan: &LaunchPlan) -> crate::Result<std::process::Child> {
+    command(plan, opener().as_ref())?
+        .spawn()
+        .map_err(|source| crate::Error::Launch { source })
+}
+
+/// How the OS opens a bundle or URL: an absolute program and the arguments before the target.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Opener {
+    pub program: PathBuf,
+    pub prefix: Vec<String>,
+}
+
+/// The opener for this OS. `None` on Linux when `xdg-open` is not installed.
+#[must_use]
+pub fn opener() -> Option<Opener> {
+    #[cfg(target_os = "macos")]
+    return Some(Opener {
+        program: "/usr/bin/open".into(),
+        prefix: Vec::new(),
+    });
+    #[cfg(target_os = "windows")]
+    return std::env::var_os("SystemRoot")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .map(|root| Opener {
+            program: root.join(r"System32\rundll32.exe"),
+            prefix: vec!["url.dll,FileProtocolHandler".into()],
+        });
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    crate::detect::find_in(&crate::detect::search_path(), "xdg-open").map(|program| Opener {
+        program,
+        prefix: Vec::new(),
+    })
+}
+
+/// Builds the command for `plan` without running it.
+pub fn command(plan: &LaunchPlan, opener: Option<&Opener>) -> crate::Result<std::process::Command> {
+    use std::process::{Command, Stdio};
+
+    let mut cmd = match plan {
+        LaunchPlan::Spawn { program, args, cwd } => {
+            let mut cmd = Command::new(program);
+            cmd.args(args);
+            if let Some(dir) = cwd {
+                cmd.current_dir(dir);
+            }
+            cmd
+        }
+        LaunchPlan::OpenBundle { path } => {
+            let opener = opener.ok_or(crate::Error::NoOpener)?;
+            let mut cmd = Command::new(&opener.program);
+            cmd.args(&opener.prefix).arg(path);
+            cmd
+        }
+        LaunchPlan::OpenUrl { url } => {
+            let opener = opener.ok_or(crate::Error::NoOpener)?;
+            let mut cmd = Command::new(&opener.program);
+            cmd.args(&opener.prefix).arg(url.as_str());
+            cmd
+        }
+    };
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        /// `CREATE_NEW_PROCESS_GROUP`: Ctrl+C sent to Muster's group does not reach the app.
+        const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+        cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+    }
+    Ok(cmd)
 }
 
 fn check_path_shape(path: &Path) -> Result<(), TargetError> {
@@ -348,14 +428,65 @@ mod tests {
         );
     }
 
+    fn opener() -> Opener {
+        Opener {
+            program: "/usr/bin/opener".into(),
+            prefix: vec!["--flag".into()],
+        }
+    }
+
+    fn parts(cmd: &std::process::Command) -> (String, Vec<String>) {
+        let args = cmd.get_args().map(|a| a.to_string_lossy().into_owned()).collect();
+        (cmd.get_program().to_string_lossy().into_owned(), args)
+    }
+
     #[test]
-    fn launching_is_not_implemented_yet() {
-        let plan = LaunchPlan::OpenUrl {
-            url: Url::parse("https://example.com").unwrap(),
+    fn spawn_passes_arguments_verbatim_with_no_shell() {
+        let plan = LaunchPlan::Spawn {
+            program: "/opt/app".into(),
+            args: vec!["a b".into(), "; rm -rf ~".into(), "$HOME".into()],
+            cwd: Some("/tmp".into()),
         };
-        assert!(matches!(
-            launch(&plan),
-            Err(crate::Error::NotImplemented("launching"))
-        ));
+        let cmd = command(&plan, None).unwrap();
+        assert_eq!(parts(&cmd), ("/opt/app".into(), vec!["a b".into(), "; rm -rf ~".into(), "$HOME".into()]));
+        assert_eq!(cmd.get_current_dir(), Some(Path::new("/tmp")));
+    }
+
+    #[test]
+    fn bundles_and_urls_go_through_the_opener_as_one_argument() {
+        let url = LaunchPlan::OpenUrl {
+            url: Url::parse("https://example.com/a b?q=\"x\"").unwrap(),
+        };
+        assert_eq!(
+            parts(&command(&url, Some(&opener())).unwrap()),
+            ("/usr/bin/opener".into(), vec!["--flag".into(), "https://example.com/a%20b?q=%22x%22".into()])
+        );
+        let bundle = LaunchPlan::OpenBundle { path: "/Applications/A.app".into() };
+        assert_eq!(
+            parts(&command(&bundle, Some(&opener())).unwrap()).1,
+            ["--flag", "/Applications/A.app"]
+        );
+    }
+
+    #[test]
+    fn missing_opener_is_an_error_not_a_fallback() {
+        let url = LaunchPlan::OpenUrl { url: Url::parse("https://example.com").unwrap() };
+        assert!(matches!(command(&url, None), Err(crate::Error::NoOpener)));
+    }
+
+    /// The one test that starts a real process (`.claude/rules/testing.md`).
+    #[test]
+    #[ignore = "spawns a process; run with --ignored"]
+    fn smoke_spawns_and_reaps_a_harmless_program() {
+        #[cfg(unix)]
+        let target = program("/usr/bin/true".into());
+        #[cfg(windows)]
+        let target = LaunchTarget::Program {
+            path: format!(r"{}\System32\cmd.exe", std::env::var("SystemRoot").unwrap()).into(),
+            args: vec!["/c".into(), "exit".into(), "0".into()],
+            cwd: None,
+        };
+        let mut child = launch(&plan(&target).unwrap()).unwrap();
+        assert!(child.wait().unwrap().success());
     }
 }

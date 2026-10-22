@@ -1,14 +1,17 @@
 //! Named groups of apps that launch together.
 //!
 //! A group is an ordered list of entries. Each entry points at an [`AppEntry`] by id and can
-//! override its arguments and working directory and add a delay before it starts. Launching,
-//! closing a group, and hotkeys are wired later; this module owns the data and its rules.
+//! override its arguments and working directory and add a delay before it starts.
+//! [`plan_group`] turns a group into launch steps; the shell runs them in order, sleeping for
+//! each delay, and one failed entry does not stop the rest.
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::launch::{LaunchPlan, LaunchTarget, TargetError};
 use crate::model::{AppEntry, AppId, Source};
 
 pub const MAX_GROUP_NAME_LEN: usize = 64;
@@ -57,6 +60,58 @@ pub enum GroupError {
     DelayTooLong,
     #[error("group refers to an app that does not exist")]
     UnknownApp(AppId),
+    #[error("group runs a manually added entry and has not been confirmed")]
+    NeedsConfirmation,
+}
+
+/// One entry of a planned group run.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Step {
+    pub app: AppId,
+    /// Wait this long before starting this entry.
+    pub delay: Duration,
+    /// The validated plan, or why this entry cannot start. Checked now, at launch time.
+    pub plan: Result<LaunchPlan, TargetError>,
+}
+
+/// Plans a run of `group`. Fails as a whole if the group is invalid or still needs the
+/// first-run confirmation; individual targets that fail validation become failed steps.
+pub fn plan_group(group: &Group, apps: &[AppEntry]) -> Result<Vec<Step>, GroupError> {
+    group.validate(apps)?;
+    if group.needs_confirmation(apps) {
+        return Err(GroupError::NeedsConfirmation);
+    }
+    let by_id: HashMap<&AppId, &AppEntry> = apps.iter().map(|a| (&a.id, a)).collect();
+    group
+        .entries
+        .iter()
+        .map(|entry| {
+            let app = by_id
+                .get(&entry.app)
+                .ok_or_else(|| GroupError::UnknownApp(entry.app.clone()))?;
+            Ok(Step {
+                app: entry.app.clone(),
+                delay: Duration::from_millis(u64::from(entry.delay_ms)),
+                plan: crate::launch::plan(&entry.target_for(&app.target)),
+            })
+        })
+        .collect()
+}
+
+impl GroupEntry {
+    /// The app's target with this entry's overrides. Only programs take arguments and a
+    /// working directory; overrides on a bundle or URL entry are ignored.
+    #[must_use]
+    pub fn target_for(&self, base: &LaunchTarget) -> LaunchTarget {
+        match base {
+            LaunchTarget::Program { path, args, cwd } => LaunchTarget::Program {
+                path: path.clone(),
+                args: self.args.clone().unwrap_or_else(|| args.clone()),
+                cwd: self.cwd.clone().or_else(|| cwd.clone()),
+            },
+            other => other.clone(),
+        }
+    }
 }
 
 impl Group {
@@ -180,5 +235,63 @@ mod tests {
         assert!(g.needs_confirmation(&apps));
         g.confirmed = true;
         assert!(!g.needs_confirmation(&apps));
+    }
+
+    fn program_app(id: &str, path: &std::path::Path, source: Source) -> AppEntry {
+        AppEntry {
+            id: AppId(id.into()),
+            name: id.into(),
+            target: LaunchTarget::Program {
+                path: path.into(),
+                args: vec!["--default".into()],
+                cwd: None,
+            },
+            source,
+        }
+    }
+
+    #[test]
+    fn plan_applies_overrides_delays_and_order() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("tool");
+        std::fs::write(&exe, "").unwrap();
+        let apps = [program_app("a", &exe, Source::Detected), app("web", Source::Detected)];
+        let mut first = entry("a");
+        first.args = Some(vec!["--work".into()]);
+        first.cwd = Some(dir.path().into());
+        let mut second = entry("web");
+        second.delay_ms = 1500;
+        second.args = Some(vec!["ignored".into()]);
+
+        let steps = plan_group(&group(vec![first, second, entry("a")]), &apps).unwrap();
+        assert_eq!(steps.len(), 3);
+        assert_eq!(
+            steps[0].plan,
+            Ok(LaunchPlan::Spawn { program: exe.clone(), args: vec!["--work".into()], cwd: Some(dir.path().into()) })
+        );
+        assert_eq!(steps[1].delay, Duration::from_millis(1500));
+        assert!(matches!(steps[1].plan, Ok(LaunchPlan::OpenUrl { .. })));
+        assert_eq!(
+            steps[2].plan,
+            Ok(LaunchPlan::Spawn { program: exe, args: vec!["--default".into()], cwd: None })
+        );
+    }
+
+    #[test]
+    fn plan_keeps_going_past_a_missing_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let apps = [program_app("gone", &dir.path().join("gone"), Source::Detected), app("web", Source::Detected)];
+        let steps = plan_group(&group(vec![entry("gone"), entry("web")]), &apps).unwrap();
+        assert_eq!(steps[0].plan, Err(TargetError::NotFound));
+        assert!(steps[1].plan.is_ok());
+    }
+
+    #[test]
+    fn plan_refuses_an_unconfirmed_group_with_a_manual_entry() {
+        let apps = [app("script", Source::Manual)];
+        let mut g = group(vec![entry("script")]);
+        assert_eq!(plan_group(&g, &apps), Err(GroupError::NeedsConfirmation));
+        g.confirmed = true;
+        assert!(plan_group(&g, &apps).is_ok());
     }
 }
