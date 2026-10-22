@@ -122,7 +122,7 @@ impl DesktopEntry {
         }
         let mut exec = self.exec.into_iter();
         let program = resolve_program(&exec.next()?, search_path)?;
-        let cwd = self.path.map(PathBuf::from).filter(|p| p.is_absolute());
+        let cwd = self.path.filter(|p| is_unix_absolute(p)).map(PathBuf::from);
         let icon = self.icon.and_then(|icon| find_icon(&icon, roots));
         Some(DetectedApp {
             key,
@@ -141,12 +141,17 @@ impl DesktopEntry {
 /// saved or run). A bare name is looked up in `search_path` and the entry is skipped if absent,
 /// which drops entries left behind by uninstalled packages.
 fn resolve_program(program: &str, search_path: &[PathBuf]) -> Option<PathBuf> {
-    let path = Path::new(program);
-    if path.is_absolute() {
-        Some(path.to_owned())
+    if is_unix_absolute(program) {
+        Some(PathBuf::from(program))
     } else {
         find_in(search_path, program)
     }
+}
+
+/// Desktop entries hold Unix paths. Checked as text, not with `Path::is_absolute`, so the
+/// parser behaves the same when its tests run on Windows.
+fn is_unix_absolute(path: &str) -> bool {
+    path.starts_with('/')
 }
 
 /// Parses one `.desktop` file. `Ok(None)` means a valid entry that should not be listed.
@@ -191,7 +196,7 @@ pub fn parse_desktop_entry(contents: &str) -> Result<Option<DesktopEntry>, Entry
     let name = clean_name(&name).ok_or(EntryError::BadName)?;
     let exec = tokenize_exec(&unescape(get("Exec").ok_or(EntryError::Missing("Exec"))?)?)?;
     let first = exec.first().ok_or(EntryError::Missing("Exec"))?;
-    if !Path::new(first).is_absolute() && first.contains('/') {
+    if !is_unix_absolute(first) && first.contains('/') {
         return Err(EntryError::RelativeProgram);
     }
     let string = |name: &str| -> Result<Option<String>, EntryError> {
@@ -308,8 +313,8 @@ const ICON_SIZES: [&str; 5] = ["scalable", "256x256", "128x128", "64x64", "48x48
 /// `hicolor` fallback theme and `pixmaps` beside each root's `applications` directory.
 /// Theme-specific icons are not resolved.
 fn find_icon(icon: &str, roots: &[PathBuf]) -> Option<PathBuf> {
-    let path = Path::new(icon);
-    if path.is_absolute() {
+    if is_unix_absolute(icon) {
+        let path = Path::new(icon);
         return path.is_file().then(|| path.to_owned());
     }
     if icon.contains(['/', '\\']) || icon.starts_with('.') {
