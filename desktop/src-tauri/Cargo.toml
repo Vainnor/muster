@@ -31,7 +31,9 @@ tauri = { version = "2.12", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2.5"
 tauri-plugin-autostart = "2.7"
 tauri-plugin-global-shortcut = "2.4"
-tauri-plugin-updater = { version = "2.14", optional = true }
+# No `zip` feature: it only handles legacy zipped Windows updates and pulls in zip 4.x
+# (RUSTSEC-2026-0367/0368/0369). Updates ship as plain .exe/.msi/AppImage (Tauri v2 format).
+tauri-plugin-updater = { version = "2.14", optional = true, default-features = false, features = ["rustls-tls", "system-proxy"] }
 
 [build-dependencies]
 tauri-build = { version = "2.7", features = [] }

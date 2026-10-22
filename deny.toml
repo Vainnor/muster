@@ -6,7 +6,15 @@ all-features = true
 version = 2
 yanked = "deny"
 # Each ignore carries an id, a reason and a revisit date.
-ignore = []
+ignore = [
+  # Unmaintained, not vulnerable. All four sit on the Linux-only dependency path of Tauri's
+  # stable 2.x plugins and have no release that drops them yet. Revisit 2027-01-31, or when
+  # tauri-plugin-single-instance moves to zbus 6 / Tauri moves off gtk-rs 0.18.
+  { id = "RUSTSEC-2024-0370", reason = "proc-macro-error: build-time macro via gtk 0.18 (Tauri Linux)" },
+  { id = "RUSTSEC-2026-0370", reason = "zvariant merged into zbus 6; single-instance 2.5 uses zbus 5 (Linux)" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names merged into zbus 6; single-instance 2.5 uses zbus 5 (Linux)" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive merged into zbus 6; single-instance 2.5 uses zbus 5 (Linux)" },
+]
 
 [licenses]
 version = 2
