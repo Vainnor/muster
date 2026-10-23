@@ -37,11 +37,24 @@ fn handle<'a>(cx: &'a Cx, body: Body, next: Next<'a>) -> LayerFuture<'a> {
     Box::pin(async move {
         let mut response = match next.run(cx, body).await {
             Ok(response) => response,
-            Err(error) => error.into_response(cx)?,
+            // An error that cannot render itself still leaves with the headers.
+            Err(error) => error.into_response(cx).unwrap_or_else(|e| {
+                #[allow(clippy::print_stderr, reason = "no logger configured")]
+                {
+                    eprintln!("muster-web: rendering an error response failed: {e}");
+                }
+                internal_error()
+            }),
         };
         apply(&mut response);
         Ok(response)
     })
+}
+
+fn internal_error() -> Response {
+    let mut response = Response::new(Body::empty());
+    *response.status_mut() = http::StatusCode::INTERNAL_SERVER_ERROR;
+    response
 }
 
 pub(crate) fn apply(response: &mut Response) {
@@ -73,6 +86,16 @@ mod tests {
         for bad in ["unsafe-inline", "unsafe-eval", "http:", "https:", "*"] {
             assert!(!CSP.contains(bad), "{bad}");
         }
+    }
+
+    #[test]
+    fn the_fallback_error_is_a_bare_500() {
+        let response = internal_error();
+        assert_eq!(response.status(), http::StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(
+            response.headers().is_empty(),
+            "apply adds the headers after"
+        );
     }
 
     #[test]
