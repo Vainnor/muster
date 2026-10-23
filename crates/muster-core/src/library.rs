@@ -310,6 +310,23 @@ impl Library {
         }
     }
 
+    /// Which of `processes` closing a group would quit, entry by entry
+    /// ([`crate::close::plan_close`]).
+    pub fn plan_close(
+        &self,
+        id: &GroupId,
+        processes: &[crate::close::RunningProcess],
+        own_pid: u32,
+    ) -> Result<Vec<crate::close::EntryClose>> {
+        let group = self.group(id).ok_or(Error::UnknownId)?;
+        Ok(crate::close::plan_close(
+            group,
+            &self.apps(),
+            processes,
+            own_pid,
+        )?)
+    }
+
     /// A preset or imported theme by id.
     #[must_use]
     pub fn theme(&self, id: &str) -> Option<ValidTheme> {
@@ -594,6 +611,23 @@ mod tests {
         let (mut lib, _, _) = two_groups();
         assert!(matches!(
             lib.set_group_hotkey(&GroupId("g:nope".into()), Some(hotkey("Ctrl+Alt+1"))),
+            Err(Error::UnknownId)
+        ));
+    }
+
+    #[test]
+    fn plans_closing_a_group_by_id() {
+        let (lib, work, _) = two_groups();
+        let closing = lib.plan_close(&work, &[], 1).unwrap();
+        assert_eq!(
+            closing,
+            [crate::close::EntryClose {
+                app: AppId("m:blog".into()),
+                matched: crate::close::CloseMatch::Link,
+            }]
+        );
+        assert!(matches!(
+            lib.plan_close(&GroupId("g:nope".into()), &[], 1),
             Err(Error::UnknownId)
         ));
     }
