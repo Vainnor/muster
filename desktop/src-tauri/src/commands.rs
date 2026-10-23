@@ -7,6 +7,7 @@
 )]
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use muster_core::groups::GroupId;
 use muster_core::info::AppInfo;
@@ -354,16 +355,24 @@ pub(crate) async fn list_apps(state: State<'_, AppState>) -> Result<Vec<AppView>
 /// One scan at a time: concurrent requests wait their turn, so the webview cannot start many
 /// scans at once, each with its own plist-parsing thread.
 static SCAN: tauri::async_runtime::Mutex<()> = tauri::async_runtime::Mutex::const_new(());
+/// Counts finished scans, so a request that waited behind one uses its result.
+static SCANS_DONE: AtomicU64 = AtomicU64::new(0);
 
 /// Scans the disk again, off the main thread.
 #[tauri::command]
 pub(crate) async fn refresh_apps(state: State<'_, AppState>) -> Result<Vec<AppView>, CommandError> {
+    let before = SCANS_DONE.load(Ordering::Acquire);
     let _one_at_a_time = SCAN.lock().await;
+    if SCANS_DONE.load(Ordering::Acquire) != before {
+        let library = state.library()?;
+        return Ok(app_views(&library));
+    }
     let scan = tauri::async_runtime::spawn_blocking(muster_core::detect::detect_installed)
         .await
         .map_err(|_| CommandError::INTERNAL)?;
     let mut library = state.library()?;
     library.set_detected(&scan);
+    SCANS_DONE.fetch_add(1, Ordering::Release);
     Ok(app_views(&library))
 }
 

@@ -114,8 +114,8 @@ file, bundle or shortcut into a scanned folder, so detection treats them as untr
   The plist crate drops nested values recursively, including inside `from_reader` when a parse
   fails, and a file under the cap can nest up to 131,072 levels (ASCII format). So each parse
   runs on its own thread with a 64 MiB stack (`PARSE_STACK`), which tests show holds the
-  deepest such file in a debug build. `refresh_apps` runs one scan at a time, so concurrent requests
-  from the webview queue instead of each holding a parsing thread.
+  deepest such file in a debug build. `refresh_apps` runs one scan at a time, and a request that
+  waited behind a scan returns that scan's result, so a burst of requests costs one scan.
 - A detected app is validated by `launch::plan` each time it runs; a pinned copy in the config
   is not validated when it is pinned.
 
@@ -141,7 +141,8 @@ image name, tag and commit.
   is out of scope; the approval dialog for manual entries and overrides is the only speed bump.
 - Anything with write access to the user's config dir can change what Muster launches. That
   attacker can already run code as the user.
-- Tauri deserializes a command's arguments before the command runs, so a string from the
-  webview is in memory in full before Rust checks its size (`themes::MAX_THEME_BYTES` and the
-  other limits bound what is parsed and stored, not what IPC accepts). Script that could send a
-  huge string can already exhaust the webview's own memory.
+- Tauri 2 buffers and parses an IPC request in full before the command runs, with no size
+  limit, so a string from the webview is in Muster's main process before Rust checks its size
+  (`themes::MAX_THEME_BYTES` and the other limits bound what is parsed and stored, not what IPC
+  accepts). Injected script could send enough to crash Muster; it could not make it run
+  anything.
