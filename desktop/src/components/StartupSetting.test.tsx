@@ -54,9 +54,12 @@ describe("StartupSetting", () => {
     expect(box.checked).toBe(true);
   });
 
-  it("says so when the OS state could not be read", async () => {
-    setup(null);
+  it("when the OS state could not be read, still offers to remove the entry", async () => {
+    const { asked } = setup(null);
     await screen.findByText("Muster could not check whether it starts when you log in.");
     expect(screen.queryByRole("checkbox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Remove the login entry" }));
+    await waitFor(() => expect(asked).toEqual([false]));
+    expect((await screen.findByRole<HTMLInputElement>("checkbox")).checked).toBe(false);
   });
 });

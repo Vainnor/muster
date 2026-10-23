@@ -48,6 +48,10 @@ impl CommandError {
         code: "login_item",
         message: "Muster could not change whether it starts when you log in.",
     };
+    pub(crate) const RUNNING_FROM_DOWNLOAD: Self = Self {
+        code: "running_from_download",
+        message: "Move Muster to your Applications folder and open it from there, then turn this on.",
+    };
     pub(crate) const BUSY: Self = Self {
         code: "busy",
         message: "Answer the open Muster dialog first.",
@@ -536,7 +540,16 @@ pub(crate) fn set_start_on_login<R: Runtime>(
         crate::diag::report(what, e.as_ref());
         CommandError::LOGIN_ITEM
     };
-    crate::autostart::set(&app, enabled).map_err(|e| failed("changing start on login", &e))?;
+    crate::autostart::set(&app, enabled).map_err(|e| {
+        if matches!(
+            e.downcast_ref::<muster_core::login::LoginError>(),
+            Some(muster_core::login::LoginError::TemporaryLocation)
+        ) {
+            CommandError::RUNNING_FROM_DOWNLOAD
+        } else {
+            failed("changing start on login", &e)
+        }
+    })?;
     crate::autostart::is_enabled(&app).map_err(|e| failed("reading start on login", &e))
 }
 

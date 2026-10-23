@@ -24,6 +24,8 @@ pub fn run() -> anyhow::Result<()> {
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             if argv.iter().any(|a| a == popup::FLAG) {
                 popup::toggle_or_log(app);
+            } else if argv.iter().any(|a| a == autostart::FLAG) {
+                // The login entry fired while Muster already runs: nothing to open.
             } else {
                 window::show_or_log(app);
             }

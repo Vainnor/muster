@@ -2,12 +2,13 @@
 //! entry with each OS's quoting; this module says where it goes and which program it starts.
 //! The entry starts Muster with `--autostart`, which keeps the main window closed.
 //!
-//! Whether it is on is read from the OS each time, not from the config file, so removing the
-//! entry in System Settings or Task Manager is reflected.
+//! Whether it is on is read from the OS each time, not from the config file, so an entry the
+//! user deletes is shown as off. Disabling it in the OS instead (Task Manager's Startup tab,
+//! macOS "Allow in the Background") keeps the entry, so Settings still shows it on.
 
 use anyhow::Context as _;
 use muster_core::login::{self, Program};
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Runtime};
 
 pub(crate) use muster_core::login::FLAG;
 
@@ -31,20 +32,29 @@ pub(crate) fn set<R: Runtime>(app: &AppHandle<R>, enabled: bool) -> anyhow::Resu
     allow(unused_variables, reason = "used on Linux only")
 )]
 fn program<R: Runtime>(app: &AppHandle<R>) -> anyhow::Result<Program> {
-    #[cfg(target_os = "linux")]
-    if let Some(appimage) = app.env().appimage {
-        return Program::new(std::path::Path::new(&appimage)).context("using the AppImage path");
-    }
     let exe = std::env::current_exe().context("finding Muster's executable")?;
-    Program::new(&exe).context("using Muster's executable path")
+    #[cfg(target_os = "linux")]
+    let (appimage, appdir) = (
+        tauri::Manager::env(app).appimage,
+        std::env::var_os("APPDIR"),
+    );
+    #[cfg(not(target_os = "linux"))]
+    let (appimage, appdir): (Option<std::ffi::OsString>, Option<std::ffi::OsString>) = (None, None);
+    login::entry_program(
+        &exe,
+        appimage.as_deref().map(std::path::Path::new),
+        appdir.as_deref().map(std::path::Path::new),
+    )
+    .context("choosing the program to start")
 }
 
 /// `~/Library/LaunchAgents/<identifier>.plist`.
 #[cfg(target_os = "macos")]
 mod os {
-    use super::{AppHandle, Manager, Program, Runtime, login};
+    use super::{AppHandle, Program, Runtime, login};
     use anyhow::Context as _;
     use std::path::PathBuf;
+    use tauri::Manager as _;
 
     fn entry<R: Runtime>(app: &AppHandle<R>) -> anyhow::Result<(PathBuf, String)> {
         let label = app.config().identifier.clone();
@@ -74,9 +84,10 @@ mod os {
 /// `$XDG_CONFIG_HOME/autostart/<identifier>.desktop`.
 #[cfg(target_os = "linux")]
 mod os {
-    use super::{AppHandle, Manager, Program, Runtime, login};
+    use super::{AppHandle, Program, Runtime, login};
     use anyhow::Context as _;
     use std::path::PathBuf;
+    use tauri::Manager as _;
 
     fn entry<R: Runtime>(app: &AppHandle<R>) -> anyhow::Result<PathBuf> {
         let id = &app.config().identifier;

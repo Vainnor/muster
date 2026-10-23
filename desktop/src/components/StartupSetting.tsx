@@ -36,7 +36,14 @@ export function StartupSetting({ onError }: Props) {
     <fieldset className="fieldset">
       <legend>Startup</legend>
       {enabled === null ? (
-        <p className="muted">Muster could not check whether it starts when you log in.</p>
+        <>
+          <p className="muted">Muster could not check whether it starts when you log in.</p>
+          <div className="actions">
+            <button type="button" className="button" disabled={busy} onClick={() => void toggle(false)}>
+              Remove the login entry
+            </button>
+          </div>
+        </>
       ) : (
         <label className="check">
           <input type="checkbox" checked={enabled} disabled={busy} onChange={(e) => void toggle(e.target.checked)} />

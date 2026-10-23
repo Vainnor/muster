@@ -64,8 +64,9 @@ new capability, command, CSP source, plugin, file location or import format.
   `io::Error` text, which can carry paths.
 - The UI applies theme tokens only when the name matches `^--mu-[a-z0-9-]+$`.
 
-So injected script could start detected apps without overrides, and approved entries, and
-could add entries and groups. Anything else it asks to run puts a native dialog in front of
+So injected script could start detected apps without overrides, and approved entries, could
+add entries and groups, and could turn start on login on or off without a dialog (which makes
+only Muster itself start at login). Anything else it asks to run puts a native dialog in front of
 the user listing the exact command line; it cannot answer that dialog. It cannot read files or
 reach the network.
 
@@ -109,11 +110,14 @@ reach the network.
 it on in Settings: `~/Library/LaunchAgents/com.vainnor.muster.plist` on macOS,
 `$XDG_CONFIG_HOME/autostart/com.vainnor.muster.desktop` on Linux, and the `Muster` value under
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows. Turning it off removes it.
-- The entry starts Muster's own executable (on Linux, the AppImage it runs from) with the
-  single argument `--autostart`, which only keeps the main window closed. The webview sends a
+- The entry starts Muster's own executable with the single argument `--autostart`, which only
+  keeps the main window closed. On Linux it starts the AppImage instead, but only when the
+  executable is inside that AppImage's mount (`APPDIR`), since `APPIMAGE` is inherited by
+  anything an AppImage starts. A program that is not an existing file (Linux's
+  `muster (deleted)` after an upgrade) or a macOS App Translocation copy is refused. The webview sends a
   boolean (`set_start_on_login`); it cannot choose the program, the arguments or the path.
 - Each format is quoted by its own rules, and tests parse every entry back: the plist through
-  the plist writer, the `Exec` line through the detection tokenizer (`"`, `` ` ``, `$`, `\` and
+  the plist reader, the `Exec` line through the detection tokenizer (`"`, `` ` ``, `$`, `\` and
   `%` escaped), the Run value with the program in quotes so Windows does not try
   `C:\Program.exe` first. A path that is relative, not Unicode, has a control character, or (on
   Windows) contains `"` is refused rather than written.
