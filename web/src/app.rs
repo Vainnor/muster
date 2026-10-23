@@ -124,8 +124,8 @@ pub(crate) async fn page(cx: &Cx) -> Result<impl View> {
                 </a>
             </div>
             <p class="mt-3 text-sm text-muted-foreground">
-                "Free and open source (MIT). Early preview: builds are not code-signed yet, so your \
-                 OS will ask you to confirm the first launch."
+                "Free and open source (MIT). The installers are not code-signed, so your OS will ask \
+                 you to confirm the first launch."
             </p>
         </section>
         <section class="grid gap-4 sm:grid-cols-2" aria-label="Highlights">

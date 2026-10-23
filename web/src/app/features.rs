@@ -9,9 +9,8 @@ pub(crate) async fn page() -> Result<impl View> {
     Ok(view! {
         <h1 class="text-3xl font-bold">"Features"</h1>
         <p class="mt-3 text-muted-foreground">
-            "Muster is in early development. Version 0.1.0 is an unsigned preview build: finding \
-             apps, search, launching, groups, and theme import and export work. The theme editor \
-             is still to come."
+            "Version 1.0 finds your apps, searches and launches them, runs and closes groups, \
+             and imports and exports themes. A theme editor is planned."
         </p>
         <div class="mt-8 grid gap-8">
             feature(
