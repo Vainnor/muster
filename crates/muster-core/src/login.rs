@@ -21,6 +21,12 @@ pub enum LoginError {
     RelativeProgram,
     #[error("the program path is not valid Unicode or contains a control character")]
     UnusableProgram,
+    #[error("the program is not a file that exists")]
+    MissingProgram,
+    /// macOS runs an unsigned app from a randomized read-only copy until the user moves it;
+    /// an entry pointing there stops working after a restart.
+    #[error("Muster is running from a temporary copy")]
+    TemporaryLocation,
     #[error("the program path contains a character this OS's login entry cannot hold")]
     UnquotableProgram,
     #[error("the login entry could not be encoded")]
@@ -30,7 +36,8 @@ pub enum LoginError {
     Io(#[source] io::Error),
 }
 
-/// A program path that a login entry can hold: absolute, Unicode, no control characters.
+/// A program path that a login entry can hold: an existing file, absolute, Unicode, no control
+/// characters.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Program(String);
 
@@ -38,6 +45,10 @@ impl Program {
     pub fn new(path: &Path) -> Result<Self, LoginError> {
         if !path.is_absolute() {
             return Err(LoginError::RelativeProgram);
+        }
+        // Also catches Linux's `/usr/bin/muster (deleted)` after an upgrade.
+        if !path.is_file() {
+            return Err(LoginError::MissingProgram);
         }
         Self::from_text(path.to_str().ok_or(LoginError::UnusableProgram)?)
     }
@@ -55,6 +66,27 @@ impl Program {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+}
+
+/// The program a login entry should start: this executable, or the `AppImage` it runs from. An
+/// `AppImage` runs from a temporary mount, so its entry starts the `AppImage` file instead, but only
+/// when `exe` is really inside that mount (`appdir`, from `APPDIR`): `APPIMAGE` alone is
+/// inherited by anything an `AppImage` starts.
+pub fn entry_program(
+    exe: &Path,
+    appimage: Option<&Path>,
+    appdir: Option<&Path>,
+) -> Result<Program, LoginError> {
+    if let (Some(image), Some(dir)) = (appimage, appdir)
+        && exe.starts_with(dir)
+    {
+        return Program::new(image);
+    }
+    let program = Program::new(exe)?;
+    if program.as_str().contains("/AppTranslocation/") {
+        return Err(LoginError::TemporaryLocation);
+    }
+    Ok(program)
 }
 
 /// macOS: a `LaunchAgent` plist for `~/Library/LaunchAgents/<label>.plist`. The plist writer
@@ -177,6 +209,79 @@ mod tests {
     fn accepts_an_absolute_path() {
         let exe = std::env::current_exe().unwrap();
         assert_eq!(Program::new(&exe).unwrap().as_str(), exe.to_str().unwrap());
+    }
+
+    #[test]
+    fn rejects_a_program_that_is_not_a_file() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(matches!(
+            Program::new(&dir.path().join("muster (deleted)")),
+            Err(LoginError::MissingProgram)
+        ));
+        assert!(matches!(
+            Program::new(dir.path()),
+            Err(LoginError::MissingProgram)
+        ));
+    }
+
+    /// A temp dir laid out as an `AppImage`: the file itself, and its mount holding the exe.
+    fn appimage_layout() -> (
+        tempfile::TempDir,
+        std::path::PathBuf,
+        std::path::PathBuf,
+        std::path::PathBuf,
+    ) {
+        let dir = tempfile::tempdir().unwrap();
+        let image = dir.path().join("Muster.AppImage");
+        let mount = dir.path().join(".mount_Muster");
+        let exe = mount.join("usr/bin/muster");
+        fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        fs::write(&image, b"").unwrap();
+        fs::write(&exe, b"").unwrap();
+        (dir, image, mount, exe)
+    }
+
+    #[test]
+    fn an_appimage_entry_starts_the_appimage() {
+        let (_dir, image, mount, exe) = appimage_layout();
+        let program = entry_program(&exe, Some(&image), Some(&mount)).unwrap();
+        assert_eq!(program.as_str(), image.to_str().unwrap());
+    }
+
+    #[test]
+    fn an_inherited_appimage_variable_is_ignored() {
+        let (dir, image, mount, _exe) = appimage_layout();
+        let installed = dir.path().join("muster");
+        fs::write(&installed, b"").unwrap();
+        // Started by some other AppImage: APPIMAGE and APPDIR are its, not Muster's.
+        let program = entry_program(&installed, Some(&image), Some(&mount)).unwrap();
+        assert_eq!(program.as_str(), installed.to_str().unwrap());
+        let program = entry_program(&installed, Some(&image), None).unwrap();
+        assert_eq!(program.as_str(), installed.to_str().unwrap());
+    }
+
+    #[test]
+    fn a_missing_appimage_file_is_refused() {
+        let (_dir, image, mount, exe) = appimage_layout();
+        fs::remove_file(&image).unwrap();
+        assert!(matches!(
+            entry_program(&exe, Some(&image), Some(&mount)),
+            Err(LoginError::MissingProgram)
+        ));
+    }
+
+    #[test]
+    fn a_translocated_app_is_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir
+            .path()
+            .join("AppTranslocation/ABC/d/Muster.app/Contents/MacOS/muster");
+        fs::create_dir_all(exe.parent().unwrap()).unwrap();
+        fs::write(&exe, b"").unwrap();
+        assert!(matches!(
+            entry_program(&exe, None, None),
+            Err(LoginError::TemporaryLocation)
+        ));
     }
 
     #[test]
