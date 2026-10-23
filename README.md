@@ -4,7 +4,7 @@ A small, fast desktop app launcher for Windows, macOS and Linux. Muster finds th
 machine and lets you launch them one at a time, or in **groups**: put your editor, terminal and
 browser in a "Work" group and start all of them with one click.
 
-> **Status: 1.0.** The installers are not code-signed; see below.
+> **Status: 1.1.** The installers are not code-signed; see below.
 
 ## Features
 

@@ -9,7 +9,7 @@ pub(crate) async fn page() -> Result<impl View> {
     Ok(view! {
         <h1 class="text-3xl font-bold">"Features"</h1>
         <p class="mt-3 text-muted-foreground">
-            "Version 1.0 finds your apps, searches and launches them, runs and closes groups, \
+            "Version 1.1 finds your apps, searches and launches them, runs and closes groups, \
              and imports and exports themes. A theme editor is planned."
         </p>
         <div class="mt-8 grid gap-8">
