@@ -20,6 +20,9 @@
     )
 )]
 
+use std::path::Path;
+use std::time::{Duration, Instant};
+
 use serde::Serialize;
 
 /// Where to download by hand.
@@ -27,6 +30,10 @@ pub(crate) const RELEASES: &str = "https://github.com/Vainnor/muster/releases/la
 
 /// Release notes longer than this are cut; the release page has them in full.
 const MAX_NOTES: usize = 4000;
+
+/// A check this soon after the last one returns that one's answer, so script in the webview
+/// cannot turn the button into a stream of requests.
+const MIN_INTERVAL: Duration = Duration::from_secs(60);
 
 /// A newer version, as the UI shows it.
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -87,6 +94,31 @@ fn tidy_notes(raw: &str) -> String {
     notes
 }
 
+/// Whether the last check, made at `at`, is recent enough to answer for a new one.
+fn still_fresh(at: Instant, now: Instant) -> bool {
+    now.saturating_duration_since(at) < MIN_INTERVAL
+}
+
+/// Whether Muster runs from the `AppImage` named by `APPIMAGE`: the updater overwrites that file,
+/// so it has to be an existing file and this executable has to be inside its mount (`APPDIR`).
+/// An extracted `AppImage`, or one started with another `AppImage`'s variables, updates from the
+/// release page.
+#[cfg_attr(
+    not(target_os = "linux"),
+    allow(
+        dead_code,
+        reason = "Linux only; built everywhere so every CI runner tests it"
+    )
+)]
+fn runs_from_appimage(exe: &Path, appimage: Option<&Path>, appdir: Option<&Path>) -> bool {
+    match (appimage, appdir) {
+        (Some(image), Some(dir)) => {
+            !dir.as_os_str().is_empty() && exe.starts_with(dir) && image.is_file()
+        }
+        _ => false,
+    }
+}
+
 /// The `.app` holding `exe` (`X.app/Contents/MacOS/x`), or `None` outside a bundle.
 #[cfg_attr(
     not(target_os = "macos"),
@@ -95,7 +127,7 @@ fn tidy_notes(raw: &str) -> String {
         reason = "macOS only; built everywhere so every CI runner tests it"
     )
 )]
-fn app_bundle(exe: &std::path::Path) -> Option<&std::path::Path> {
+fn app_bundle(exe: &Path) -> Option<&Path> {
     let macos = exe.parent()?;
     let contents = macos.parent()?;
     let bundle = contents.parent()?;
@@ -106,7 +138,7 @@ fn app_bundle(exe: &std::path::Path) -> Option<&std::path::Path> {
 }
 
 #[cfg(feature = "updater")]
-pub(crate) use imp::{check, check_at_start, install};
+pub(crate) use imp::{check, check_at_start, install, restart_if_updated};
 
 #[cfg(not(feature = "updater"))]
 #[allow(
@@ -118,6 +150,10 @@ pub(crate) async fn check<R: tauri::Runtime>(
 ) -> Result<Option<UpdateView>, crate::commands::CommandError> {
     Err(crate::commands::CommandError::UPDATES_NOT_BUILT)
 }
+
+/// Nothing to restart into without the updater.
+#[cfg(not(feature = "updater"))]
+pub(crate) fn restart_if_updated<R: tauri::Runtime>(_app: &tauri::AppHandle<R>) {}
 
 #[cfg(not(feature = "updater"))]
 #[allow(
@@ -137,12 +173,12 @@ pub(crate) const BUILT_IN: bool = cfg!(feature = "updater");
 mod imp {
     use std::sync::Mutex;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     use tauri::{AppHandle, Runtime};
-    use tauri_plugin_updater::{Update, UpdaterExt};
+    use tauri_plugin_updater::{Error, Update, UpdaterExt};
 
-    use super::{Install, Packaging, UpdateView, install_route, tidy_notes};
+    use super::{Install, Packaging, UpdateView, install_route, still_fresh, tidy_notes};
     use crate::commands::CommandError;
 
     // The endpoint, the public key and `requireSignedVersion` are `plugins.updater` in
@@ -152,8 +188,45 @@ mod imp {
     /// The last update a check found. Install uses this one, so the webview cannot name a
     /// download of its own.
     static FOUND: Mutex<Option<Update>> = Mutex::new(None);
+    /// When the last check finished, and what it answered.
+    static LAST: Mutex<Option<(Instant, Option<UpdateView>)>> = Mutex::new(None);
     /// One check or install at a time.
     static BUSY: AtomicBool = AtomicBool::new(false);
+    /// Set once an update is installed, so the exit that follows starts the new version.
+    static RESTART: AtomicBool = AtomicBool::new(false);
+
+    /// On `RunEvent::Exit`: after an update, starts the new version without this run's
+    /// arguments, which could run a group (`--run-group`) a second time. Plugins see `Exit`
+    /// before the app's callback, so the single-instance lock is already released.
+    pub(crate) fn restart_if_updated<R: Runtime>(app: &AppHandle<R>) {
+        if !RESTART.load(Ordering::Acquire) {
+            return;
+        }
+        let mut env = tauri::Manager::env(app);
+        env.args_os.truncate(1);
+        app.cleanup_before_exit();
+        tauri::process::restart(&env);
+    }
+
+    /// What went wrong, without the error's text, which can hold a path under the home folder.
+    fn kind(e: &Error) -> &'static str {
+        match e {
+            Error::Reqwest(_) | Error::Network(_) | Error::Http(_) => "network",
+            Error::Minisign(_)
+            | Error::Base64(_)
+            | Error::SignatureUtf8(_)
+            | Error::SignedVersionMismatch { .. }
+            | Error::MissingSignedVersion => "signature",
+            Error::ReleaseNotFound
+            | Error::TargetNotFound(_)
+            | Error::TargetsNotFound(_)
+            | Error::Serialization(_)
+            | Error::Semver(_)
+            | Error::InvalidUpdaterFormat => "manifest",
+            Error::Io(_) => "file",
+            _ => "other",
+        }
+    }
 
     struct Busy;
 
@@ -174,6 +247,11 @@ mod imp {
         app: &AppHandle<R>,
     ) -> Result<Option<UpdateView>, CommandError> {
         let _busy = busy()?;
+        if let Some((at, view)) = LAST.lock().map_err(|_| CommandError::INTERNAL)?.as_ref()
+            && still_fresh(*at, Instant::now())
+        {
+            return Ok(view.clone());
+        }
         let found = app
             .updater_builder()
             .timeout(TIMEOUT)
@@ -182,7 +260,7 @@ mod imp {
             .check()
             .await
             .map_err(|e| {
-                crate::diag::report("checking for updates", &e);
+                crate::diag::report_kind("checking for updates", kind(&e));
                 CommandError::UPDATE_CHECK_FAILED
             })?;
         let view = found.as_ref().map(|update| UpdateView {
@@ -193,17 +271,19 @@ mod imp {
                 .take(32)
                 .collect(),
             notes: tidy_notes(update.body.as_deref().unwrap_or_default()),
-            install: install_route(packaging()),
+            install: install_route(packaging(app)),
         });
         *FOUND.lock().map_err(|_| CommandError::INTERNAL)? = found;
+        *LAST.lock().map_err(|_| CommandError::INTERNAL)? = Some((Instant::now(), view.clone()));
         Ok(view)
     }
 
     /// Installs the update the last check found, after the user agrees in a native dialog, and
-    /// restarts. On Windows the installer ends Muster itself.
+    /// exits so `lib.rs` starts the new version. On Windows the installer ends Muster itself and
+    /// starts the new version with the same arguments.
     pub(crate) async fn install<R: Runtime>(app: &AppHandle<R>) -> Result<(), CommandError> {
         let _busy = busy()?;
-        if install_route(packaging()) != Install::InApp {
+        if install_route(packaging(app)) != Install::InApp {
             return Err(CommandError::INSTALL_ELSEWHERE);
         }
         let update = FOUND
@@ -218,10 +298,12 @@ mod imp {
             .download_and_install(|_, _| {}, || {})
             .await
             .map_err(|e| {
-                crate::diag::report("installing the update", &e);
+                crate::diag::report_kind("installing the update", kind(&e));
                 CommandError::UPDATE_INSTALL_FAILED
             })?;
-        app.restart()
+        RESTART.store(true, Ordering::Release);
+        app.exit(0);
+        Ok(())
     }
 
     /// The check the user turned on in Settings, once at startup. A newer version is offered
@@ -256,10 +338,10 @@ mod imp {
         });
     }
 
-    fn packaging() -> Packaging {
+    fn packaging<R: Runtime>(app: &AppHandle<R>) -> Packaging {
         use tauri::utils::config::BundleType;
         match tauri::utils::platform::bundle_type() {
-            Some(BundleType::AppImage) => Packaging::AppImage,
+            Some(BundleType::AppImage) if appimage_in_use(app) => Packaging::AppImage,
             Some(BundleType::Deb | BundleType::Rpm) => Packaging::LinuxPackage,
             Some(BundleType::Nsis) => Packaging::Nsis,
             Some(BundleType::Msi) => Packaging::Msi,
@@ -268,6 +350,26 @@ mod imp {
             },
             _ => Packaging::Unknown,
         }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn appimage_in_use<R: Runtime>(app: &AppHandle<R>) -> bool {
+        let appdir = std::env::var_os("APPDIR");
+        std::env::current_exe().is_ok_and(|exe| {
+            super::runs_from_appimage(
+                &exe,
+                tauri::Manager::env(app)
+                    .appimage
+                    .as_deref()
+                    .map(std::path::Path::new),
+                appdir.as_deref().map(std::path::Path::new),
+            )
+        })
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn appimage_in_use<R: Runtime>(_app: &AppHandle<R>) -> bool {
+        false
     }
 
     /// Whether the user can replace the `.app` Muster runs from: the updater swaps the bundle
@@ -302,7 +404,6 @@ mod imp {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
     #[test]
     fn only_installs_that_need_no_admin_update_in_the_app() {
@@ -331,6 +432,37 @@ mod tests {
         let tidy = tidy_notes(&long);
         assert_eq!(tidy.chars().count(), MAX_NOTES + 1);
         assert!(tidy.ends_with('…'));
+    }
+
+    #[test]
+    fn a_check_within_a_minute_reuses_the_last_answer() {
+        let at = Instant::now();
+        assert!(still_fresh(at, at + Duration::from_secs(59)));
+        assert!(!still_fresh(at, at + MIN_INTERVAL));
+    }
+
+    #[test]
+    fn only_the_mounted_appimage_named_by_its_variables_updates_itself() {
+        let dir = std::env::temp_dir().join(format!("muster-appimage-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let image = dir.join("Muster.AppImage");
+        std::fs::write(&image, b"").expect("fixture file");
+        let mount = Path::new("/tmp/.mount_MusterAbc");
+        let exe = mount.join("usr/bin/muster");
+        assert!(runs_from_appimage(&exe, Some(&image), Some(mount)));
+        // Extracted, or run with another AppImage's variables.
+        let extracted = Path::new("/opt/squashfs-root/usr/bin/muster");
+        assert!(!runs_from_appimage(extracted, Some(&image), Some(mount)));
+        assert!(!runs_from_appimage(
+            &exe,
+            Some(&dir.join("Gone.AppImage")),
+            Some(mount)
+        ));
+        assert!(!runs_from_appimage(&exe, Some(&dir), Some(mount)));
+        assert!(!runs_from_appimage(&exe, None, Some(mount)));
+        assert!(!runs_from_appimage(&exe, Some(&image), None));
+        assert!(!runs_from_appimage(&exe, Some(&image), Some(Path::new(""))));
+        std::fs::remove_dir_all(&dir).expect("cleanup");
     }
 
     #[test]

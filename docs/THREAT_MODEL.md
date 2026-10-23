@@ -88,8 +88,11 @@ only Muster itself start at login), and could close a group of detected apps and
 and Windows that request is the app's own Quit or window close, which leaves a save prompt
 up; on Linux it is `SIGTERM`, which many apps handle by exiting without asking, so unsaved
 work in a detected app can be lost. Anything else it asks to run puts a native dialog in front of
-the user listing the exact command line; it cannot answer that dialog. It cannot read files or
-reach the network.
+the user listing the exact command line; it cannot answer that dialog. It cannot read files.
+It can start an update check (at most one request a minute; a sooner check gets the last
+answer), turn the check at startup on or off, and ask to install an update, which shows a
+native dialog it cannot answer; after "Not now" it cannot ask again for 5 seconds. It can
+reach no other address.
 
 **Launching something the user did not intend.**
 - Targets are `Program { path, args, cwd }`, `AppBundle { path }` or `Url { url }`, never a
@@ -225,16 +228,29 @@ on the check at startup (`updates.rs`).
 - The downloaded file must carry a signature from the release key, and the signature must
   name the version the manifest announced, so a tampered manifest (the manifest itself is not
   signed) cannot pass off an older, validly signed release.
-- Muster never elevates to install. The updater would on some installs (`pkexec` or `sudo`
+- Muster never asks for elevation to install. The updater would on some installs (`pkexec` or `sudo`
   for `.deb` and `.rpm`, `msiexec` per-machine for the MSI, an administrator prompt for a
   macOS app in a folder the user cannot write), so those are sent to the release page;
   `latest.json` lists only the AppImage, the per-user NSIS installer and the macOS app.
   Whether this copy can update itself comes from the bundle type the bundler patched into the
-  binary, and on macOS from creating a file in the app and its folder.
+  binary; for an `AppImage`, also from `APPIMAGE` naming an existing file and Muster running
+  inside `APPDIR`, since the updater overwrites that file; on macOS, from creating a file in
+  the app and in its folder. That macOS probe runs before the dialog, so if the folder becomes
+  unwritable in between, or a sticky folder lets Muster create files but not replace the app,
+  the updater falls back to the OS administrator prompt. The user can cancel it.
+- After installing, Muster restarts without the arguments it was started with, so a run
+  started by `--run-group` does not run the group again. On Windows the NSIS installer starts
+  the new version itself with the original arguments; a copy first started by
+  `--run-group` runs that group once more after an update (accepted).
+- Updater errors are logged as a fixed kind (network, signature, manifest, file), never their
+  text, which can name a path.
 - `open_release_page` opens one fixed URL through the OS opener.
 - The release key is in GitHub secrets only. The sign job that uses it runs the Tauri CLI
-  installed from the lockfile with `--ignore-scripts` on files the build jobs produced, so
-  build scripts never see it; it has a read-only token. Losing it means installed copies
+  installed from the lockfile with `--ignore-scripts`, called through `node` rather than
+  `pnpm exec`, on files the build jobs produced, so build scripts never see it; it has a
+  read-only token. Any workflow on any branch can read a repository secret, which is fine
+  with one maintainer; with collaborators, move the key to an environment limited to `v*`
+  tags. Losing it means installed copies
   cannot verify updates. The website handles no input and serves a CSP of `default-src 'none'`
 plus `nosniff`, `no-referrer`, COOP/CORP `same-origin`, HSTS and `frame-ancestors 'none'`.
 
@@ -244,7 +260,8 @@ plus `nosniff`, `no-referrer`, COOP/CORP `same-origin`, HSTS and `frame-ancestor
 `SHA256SUMS.txt` and the updater files a minisign signature. Jobs that run build code have
 read-only tokens and no secrets; the jobs that write (the
 release draft, the website image push to ghcr.io) only download what a build job produced and
-upload it. The website deploy job holds the one stored secret, `HOMELAB_DEPLOY_TOKEN`, which can
+upload it. The updater signing key and its password are repository secrets used only by the release sign
+job. The website deploy job holds the other stored secret, `HOMELAB_DEPLOY_TOKEN`, which can
 write only to `Vainnor/homelab-infra`; the job runs no checkout or build code and sends only the
 image name, tag and commit.
 

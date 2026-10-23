@@ -72,7 +72,8 @@ jobs:
           # The macOS updater installs from a .tar.gz of the app bundle.
           app="$(find target -path '*/release/bundle/macos/*' -type d -name '*.app' -prune | head -n 1)"
           if [ -n "$app" ]; then
-            tar -C "$(dirname "$app")" -czf "release-assets/Muster_${GITHUB_REF_NAME#v}_universal.app.tar.gz" "$(basename "$app")"
+            # No AppleDouble or extended-attribute entries, which would land inside the bundle.
+            COPYFILE_DISABLE=1 tar --no-mac-metadata --no-xattrs -C "$(dirname "$app")" -czf "release-assets/Muster_${GITHUB_REF_NAME#v}_universal.app.tar.gz" "$(basename "$app")"
           fi
           ls -l release-assets
           test -n "$(ls release-assets)"
@@ -119,8 +120,9 @@ jobs:
           fi
           mkdir signatures
           # Bound to the version, so a manifest cannot pair a newer number with an older file.
+          # node runs the CLI directly: `pnpm exec` would load pnpm config from the repo.
           for file in assets/*.app.tar.gz assets/*.AppImage assets/*-setup.exe; do
-            pnpm --dir desktop exec tauri signer sign --app-version "${GITHUB_REF_NAME#v}" "$PWD/$file"
+            node desktop/node_modules/@tauri-apps/cli/tauri.js signer sign --app-version "${GITHUB_REF_NAME#v}" "$PWD/$file"
             mv "$file.sig" signatures/
           done
           ls -l signatures

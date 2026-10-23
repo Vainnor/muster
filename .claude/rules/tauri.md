@@ -22,8 +22,9 @@ The checklist is `security.md` → "Webview and IPC". This file is how the shell
   a non-empty list enables only the files it names.
 - `app.security.csp` is security config (`security.md`); `freezePrototype: true`;
   `withGlobalTauri: false`; no `dangerousRemoteDomainIpcAccess`, no `assetProtocol` scope.
-- The updater is behind the `updater` cargo feature and `plugins.updater` stays without
-  `active`/`endpoints` until `docs/RELEASING.md` § Updater is done.
+- The updater is behind the `updater` cargo feature (on in release builds). `plugins.updater`
+  keeps one fixed endpoint, the release public key and `requireSignedVersion: true`; no plugin
+  JS permission is granted (`docs/RELEASING.md` § Updater).
 
 ## Window lifecycle (performance)
 - Closing the window **destroys** it; the app keeps running in the tray. Showing it again
