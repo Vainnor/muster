@@ -31,6 +31,9 @@ pub enum Error {
     #[error("name is empty, too long or has control characters")]
     InvalidName,
 
+    #[error("the popup or another group already uses that hotkey")]
+    HotkeyInUse,
+
     #[error("there is no app or group with that id")]
     UnknownId,
 
@@ -64,6 +67,7 @@ impl Error {
             Self::InvalidGroup(_) => "invalid_group",
             Self::InvalidTheme(_) => "invalid_theme",
             Self::InvalidHotkey(_) => "invalid_hotkey",
+            Self::HotkeyInUse => "hotkey_in_use",
             Self::Io { .. } => "io",
             Self::InvalidConfig(_) => "invalid_config",
             Self::InvalidName => "invalid_name",
@@ -84,6 +88,7 @@ mod tests {
     fn codes_are_stable() {
         assert_eq!(Error::NeedsApproval.code(), "needs_approval");
         assert_eq!(Error::UnknownId.code(), "unknown_id");
+        assert_eq!(Error::HotkeyInUse.code(), "hotkey_in_use");
     }
 
     #[test]

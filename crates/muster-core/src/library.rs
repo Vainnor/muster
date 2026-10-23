@@ -17,6 +17,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::detect::{DetectedApp, Scan};
 use crate::groups::{self, Group, GroupEntry, GroupError, GroupId, Step};
+use crate::hotkey::Hotkey;
 use crate::launch::{LaunchPlan, LaunchTarget};
 use crate::model::{AppEntry, AppId, Source};
 use crate::store::Config;
@@ -183,6 +184,56 @@ impl Library {
         self.config = next;
         self.prune_approved();
         Ok(id)
+    }
+
+    /// Every hotkey and what it does: the popup's first, then each group's. The shell
+    /// registers exactly these.
+    #[must_use]
+    pub fn hotkeys(&self) -> Vec<(Hotkey, HotkeyAction)> {
+        let popup = self.config.settings.popup_hotkey.clone();
+        let popup = popup.map(|h| (h, HotkeyAction::Popup));
+        let groups = self.config.groups.iter().filter_map(|g| {
+            let hotkey = g.hotkey.clone()?;
+            Some((hotkey, HotkeyAction::RunGroup(g.id.clone())))
+        });
+        popup.into_iter().chain(groups).collect()
+    }
+
+    /// Sets or clears the popup hotkey. A hotkey a group already uses is refused.
+    pub fn set_popup_hotkey(&mut self, hotkey: Option<Hotkey>) -> Result<()> {
+        self.ensure_hotkey_free(hotkey.as_ref(), &HotkeyAction::Popup)?;
+        self.config.settings.popup_hotkey = hotkey;
+        Ok(())
+    }
+
+    /// Sets or clears a group's hotkey. A hotkey the popup or another group uses is refused.
+    pub fn set_group_hotkey(&mut self, id: &GroupId, hotkey: Option<Hotkey>) -> Result<()> {
+        if self.group(id).is_none() {
+            return Err(Error::UnknownId);
+        }
+        self.ensure_hotkey_free(hotkey.as_ref(), &HotkeyAction::RunGroup(id.clone()))?;
+        let group = self
+            .config
+            .groups
+            .iter_mut()
+            .find(|g| g.id == *id)
+            .ok_or(Error::UnknownId)?;
+        group.hotkey = hotkey;
+        Ok(())
+    }
+
+    fn ensure_hotkey_free(&self, hotkey: Option<&Hotkey>, owner: &HotkeyAction) -> Result<()> {
+        let Some(hotkey) = hotkey else {
+            return Ok(());
+        };
+        if self
+            .hotkeys()
+            .iter()
+            .any(|(taken, action)| taken == hotkey && action != owner)
+        {
+            return Err(Error::HotkeyInUse);
+        }
+        Ok(())
     }
 
     pub fn delete_group(&mut self, id: &GroupId) -> Result<()> {
@@ -418,6 +469,15 @@ fn unique_id(prefix: &str, name: &str, taken: &HashSet<&str>) -> String {
         .unwrap_or(base)
 }
 
+/// What a global hotkey does when pressed.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum HotkeyAction {
+    /// Opens or closes the popup launcher.
+    Popup,
+    /// Runs the group, through the same approval as running it from the window.
+    RunGroup(GroupId),
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -458,6 +518,84 @@ mod tests {
             name: name.into(),
             entries: entries.iter().map(|e| entry(e)).collect(),
         }
+    }
+
+    fn hotkey(raw: &str) -> Hotkey {
+        Hotkey::parse(raw).unwrap()
+    }
+
+    fn two_groups() -> (Library, GroupId, GroupId) {
+        let mut lib = Library::new(Config::default());
+        lib.add_manual("Blog", url("https://blog.example")).unwrap();
+        let a = lib.save_group(draft(None, "Work", &["m:blog"])).unwrap();
+        let b = lib.save_group(draft(None, "Play", &["m:blog"])).unwrap();
+        (lib, a, b)
+    }
+
+    #[test]
+    fn group_hotkeys_are_listed_after_the_popup_and_survive_a_save() {
+        let (mut lib, work, play) = two_groups();
+        lib.set_group_hotkey(&work, Some(hotkey("ctrl+alt+1")))
+            .unwrap();
+        lib.set_group_hotkey(&play, Some(hotkey("ctrl+alt+2")))
+            .unwrap();
+        lib.save_group(draft(Some(&work), "Work", &["m:blog"]))
+            .unwrap();
+        let mut listed = lib.hotkeys();
+        // The popup comes first; groups follow in config order, which a save changes.
+        listed[1..].sort_by(|a, b| a.0.as_str().cmp(b.0.as_str()));
+        assert_eq!(
+            listed,
+            [
+                (hotkey("Alt+Space"), HotkeyAction::Popup),
+                (hotkey("Ctrl+Alt+1"), HotkeyAction::RunGroup(work.clone())),
+                (hotkey("Ctrl+Alt+2"), HotkeyAction::RunGroup(play)),
+            ]
+        );
+        lib.set_group_hotkey(&work, None).unwrap();
+        assert_eq!(lib.hotkeys().len(), 2);
+    }
+
+    #[test]
+    fn a_hotkey_belongs_to_one_thing() {
+        let (mut lib, work, play) = two_groups();
+        assert!(matches!(
+            lib.set_group_hotkey(&work, Some(hotkey("Alt+Space"))),
+            Err(Error::HotkeyInUse)
+        ));
+        lib.set_group_hotkey(&work, Some(hotkey("Ctrl+Alt+1")))
+            .unwrap();
+        assert!(matches!(
+            lib.set_group_hotkey(&play, Some(hotkey("ctrl+alt+1"))),
+            Err(Error::HotkeyInUse)
+        ));
+        assert!(matches!(
+            lib.set_popup_hotkey(Some(hotkey("Ctrl+Alt+1"))),
+            Err(Error::HotkeyInUse)
+        ));
+        // Setting the same hotkey on its own owner again is fine.
+        lib.set_group_hotkey(&work, Some(hotkey("Ctrl+Alt+1")))
+            .unwrap();
+        lib.set_popup_hotkey(Some(hotkey("Alt+Space"))).unwrap();
+    }
+
+    #[test]
+    fn a_deleted_groups_hotkey_is_free_again() {
+        let (mut lib, work, play) = two_groups();
+        lib.set_group_hotkey(&work, Some(hotkey("Ctrl+Alt+1")))
+            .unwrap();
+        lib.delete_group(&work).unwrap();
+        lib.set_group_hotkey(&play, Some(hotkey("Ctrl+Alt+1")))
+            .unwrap();
+    }
+
+    #[test]
+    fn hotkey_for_an_unknown_group_is_refused() {
+        let (mut lib, _, _) = two_groups();
+        assert!(matches!(
+            lib.set_group_hotkey(&GroupId("g:nope".into()), Some(hotkey("Ctrl+Alt+1"))),
+            Err(Error::UnknownId)
+        ));
     }
 
     #[test]
