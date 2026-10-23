@@ -13,7 +13,9 @@ pub enum Error {
     #[error("theme is invalid: {0}")]
     InvalidTheme(#[from] crate::themes::ThemeError),
 
-    #[error("config file {path} could not be read or written")]
+    /// `path` is for callers that need it; the message leaves it out, since a path under the
+    /// user's home must never reach a log (`PRIVACY.md`).
+    #[error("config file could not be read or written")]
     Io {
         path: PathBuf,
         #[source]
@@ -78,5 +80,14 @@ mod tests {
     fn codes_are_stable() {
         assert_eq!(Error::NeedsApproval.code(), "needs_approval");
         assert_eq!(Error::UnknownId.code(), "unknown_id");
+    }
+
+    #[test]
+    fn io_error_message_leaves_out_the_path() {
+        let e = Error::Io {
+            path: "/home/someone/.config/com.vainnor.muster/config.json".into(),
+            source: std::io::Error::other("disk full"),
+        };
+        assert_eq!(e.to_string(), "config file could not be read or written");
     }
 }
