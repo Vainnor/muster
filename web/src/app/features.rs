@@ -56,7 +56,7 @@ pub(crate) async fn page() -> Result<impl View> {
                 title: "Private by design",
                 items: &[
                     "No telemetry, analytics or account.",
-                    "Works offline. The only network request is an update check you start yourself.",
+                    "Works offline. The only network request is the update check: when you press the button, or at startup if you turn that on. Updates install from Settings and restart Muster.",
                     "Your settings stay in a file on your computer.",
                 ]
             )
