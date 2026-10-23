@@ -410,7 +410,7 @@ mod tests {
     #[test]
     fn rejects_cmd_special_characters_in_a_batch_files_path() {
         let dir = tempfile::tempdir().unwrap();
-        let odd = dir.path().join("x%CD:~0,0%y");
+        let odd = dir.path().join("x%TEMP%y");
         std::fs::create_dir(&odd).unwrap();
         let script = odd.join("run.bat");
         std::fs::write(&script, b"").unwrap();
