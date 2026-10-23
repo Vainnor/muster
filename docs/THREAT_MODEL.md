@@ -118,7 +118,9 @@ plus `nosniff`, `no-referrer`, COOP/CORP `same-origin`, HSTS and `frame-ancestor
 **Supply chain.** `Cargo.lock` and `pnpm-lock.yaml` are committed. CI runs `cargo deny`,
 `cargo audit` and `pnpm audit`. Actions are pinned by commit SHA with least-privilege
 `permissions:`, and container base images are pinned by digest. Release artifacts get a
-`SHA256SUMS.txt`.
+`SHA256SUMS.txt`. Jobs that run build code have read-only tokens; the jobs that write (the
+release draft, the website image push to ghcr.io) only download what a build job produced and
+upload it.
 
 ## Accepted risks
 

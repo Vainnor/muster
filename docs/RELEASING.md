@@ -61,5 +61,8 @@ Losing the private key means existing installs can no longer verify updates; bac
 
 ## Website
 
-`web.yml` builds the container image on changes but does not push or deploy it. To deploy, push
-the image to a registry you control and apply `web/deploy/` (`web/README.md`).
+`web.yml` builds the container image on every change that reaches the site. On `main` it also
+pushes the image to `ghcr.io/vainnor/muster-web` with three tags: `main`, `sha-<7-char commit>`
+and `main-<run number>`, which only ever increases, so an image-update controller can sort on
+it. The build job has a read-only token; only the publish job, which runs no build code, gets
+`packages: write`. Nothing deploys the image: the cluster pulls it (`web/README.md`).
