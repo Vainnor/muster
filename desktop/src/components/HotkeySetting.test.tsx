@@ -47,6 +47,13 @@ describe("HotkeySetting", () => {
     await screen.findByText("Ctrl+Shift+K");
   });
 
+  it("hears the key press when focus is not on the button, as after a click in WebKit", async () => {
+    const { saved } = setup({ popup_hotkey: null, popup_hotkey_active: false });
+    fireEvent.click(await screen.findByRole("button", { name: "Change…" }));
+    fireEvent.keyDown(document.body, { code: "Space", altKey: true });
+    await waitFor(() => expect(saved).toEqual(["Alt+Space"]));
+  });
+
   it("Escape cancels recording without saving or closing settings", async () => {
     const outer = vi.fn();
     const { saved } = setup({}, outer);

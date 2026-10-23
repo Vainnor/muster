@@ -18,28 +18,37 @@ export function HotkeySetting({ onError }: Props) {
   const reload = useCallback(() => ipc.getSettings().then(setSettings, onError), [onError]);
   useEffect(() => void reload(), [reload]);
 
-  const save = async (hotkey: string | null) => {
-    setRecording(false);
-    try {
-      await ipc.setPopupHotkey(hotkey);
-    } catch (e) {
-      onError(e);
-    }
-    await reload();
-  };
-
-  const onKeyDown = (e: React.KeyboardEvent) => {
-    if (!recording) return;
-    e.preventDefault();
-    // Escape cancels recording here instead of closing Settings.
-    e.stopPropagation();
-    if (e.code === "Escape" && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+  const save = useCallback(
+    async (hotkey: string | null) => {
       setRecording(false);
-      return;
-    }
-    const combo = comboFromKeyPress(e);
-    if (combo !== null) void save(combo);
-  };
+      try {
+        await ipc.setPopupHotkey(hotkey);
+      } catch (e) {
+        onError(e);
+      }
+      await reload();
+    },
+    [onError, reload],
+  );
+
+  // While recording, listen on the whole window: WebKit does not focus a button on click, so
+  // the keys may never reach the button itself. Capture runs before React's handlers, so
+  // Escape here cancels recording instead of closing Settings.
+  useEffect(() => {
+    if (!recording) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.code === "Escape" && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+        setRecording(false);
+        return;
+      }
+      const combo = comboFromKeyPress(e);
+      if (combo !== null) void save(combo);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [recording, save]);
 
   if (settings === null) return null;
   const hotkey = settings.popup_hotkey;
@@ -63,8 +72,6 @@ export function HotkeySetting({ onError }: Props) {
             className="button"
             aria-pressed={recording}
             onClick={() => setRecording((r) => !r)}
-            onKeyDown={onKeyDown}
-            onBlur={() => setRecording(false)}
           >
             {recording ? "Cancel" : "Change…"}
           </button>
