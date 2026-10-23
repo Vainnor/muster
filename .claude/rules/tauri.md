@@ -9,7 +9,7 @@ The checklist is `security.md` → "Webview and IPC". This file is how the shell
 ## Shape
 - `src/lib.rs` builds the app; `src/commands.rs` holds `#[tauri::command]` functions, each a
   few lines that call `muster-core` and map errors to `CommandError`; `src/tray.rs`,
-  `src/window.rs`, `src/hotkeys.rs`, `src/autostart.rs` own one concern each.
+  `src/window.rs`, `src/popup.rs`, `src/hotkeys.rs`, `src/autostart.rs` own one concern each.
 - A new command: write it in `commands.rs`, add it to `generate_handler!`, to
   `AppManifest::commands` in `build.rs`, and grant `allow-<name>` in
   `capabilities/main.json`. All four, or it is either unreachable or ungated.
@@ -28,7 +28,9 @@ The checklist is `security.md` → "Webview and IPC". This file is how the shell
   creates a fresh window. Never `hide()` to keep a webview alive in the background.
 - `RunEvent::ExitRequested` with no exit code is prevented so the tray stays; Quit from the
   tray exits with code 0.
-- Single instance: a second launch focuses (or recreates) the existing window and exits.
+- Single instance: a second launch focuses (or recreates) the existing window and exits; with
+  `--popup` it toggles the popup instead.
+- The popup is destroyed like the main window, never hidden.
 
 ## Per-OS gotchas
 - **Linux**: needs `libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev` to

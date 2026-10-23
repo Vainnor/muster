@@ -9,6 +9,7 @@ mod commands;
 mod diag;
 mod hotkeys;
 mod launcher;
+mod popup;
 mod state;
 mod tray;
 mod window;
@@ -20,8 +21,12 @@ use tauri::{Manager, RunEvent};
 pub fn run() -> anyhow::Result<()> {
     // Single instance goes first so a second launch exits before doing any work.
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            window::show_or_log(app);
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if argv.iter().any(|a| a == popup::FLAG) {
+                popup::toggle_or_log(app);
+            } else {
+                window::show_or_log(app);
+            }
         }))
         .plugin(autostart::plugin())
         .plugin(hotkeys::plugin())
@@ -52,6 +57,7 @@ pub fn run() -> anyhow::Result<()> {
             commands::get_settings,
             commands::set_theme,
             commands::startup_notice,
+            commands::set_popup_hotkey,
             commands::close_window
         ])
         .setup(|app| {
@@ -60,9 +66,25 @@ pub fn run() -> anyhow::Result<()> {
                 .app_config_dir()
                 .context("finding the app config directory")?;
             std::fs::create_dir_all(&dir).context("creating the app config directory")?;
-            app.manage(state::AppState::load(dir));
+            let state = state::AppState::load(dir);
+            let hotkey = state
+                .library()
+                .map_err(|_| anyhow::anyhow!("reading settings"))?
+                .config()
+                .settings
+                .popup_hotkey
+                .clone();
+            app.manage(state);
             tray::create(app.handle())?;
-            window::show(app.handle())?;
+            // A hotkey another app holds must not stop Muster starting; settings shows it.
+            if let Err(e) = hotkeys::set_popup(app.handle(), hotkey.as_ref()) {
+                diag::report("registering the popup hotkey", e.as_ref());
+            }
+            if std::env::args().any(|a| a == popup::FLAG) {
+                popup::toggle(app.handle())?;
+            } else {
+                window::show(app.handle())?;
+            }
             Ok(())
         })
         .build(tauri::generate_context!())?;

@@ -74,6 +74,12 @@ export interface StepFailure {
 
 export interface Settings {
   theme: string;
+  /** The saved popup hotkey, or null when it is off. */
+  popup_hotkey: string | null;
+  /** False with a saved hotkey: the OS refused it, usually because another app holds it. */
+  popup_hotkey_active: boolean;
+  /** Wayland sessions cannot register global hotkeys. */
+  wayland: boolean;
 }
 
 /** state::Notice */

@@ -93,6 +93,32 @@ body {
   color: var(--mu-danger);
 }
 
+/* Popup launcher: an undecorated window, so the border is its only edge. */
+.popup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mu-space-2);
+  box-sizing: border-box;
+  height: 100%;
+  padding: var(--mu-space-3);
+  border: 1px solid var(--mu-border);
+}
+
+/* Hotkey setting */
+.hotkey {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--mu-space-2);
+}
+
+.hotkey__keys {
+  padding: var(--mu-space-1) var(--mu-space-2);
+  border: 1px solid var(--mu-border);
+  border-radius: var(--mu-radius);
+  font-family: var(--mu-font-mono, monospace);
+}
+
 /* Navigation */
 .nav {
   display: flex;

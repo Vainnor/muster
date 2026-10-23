@@ -36,6 +36,11 @@ const CANCEL: &str = "Cancel";
 static ASKING: AtomicBool = AtomicBool::new(false);
 static DECLINED_AT: Mutex<Option<Instant>> = Mutex::new(None);
 
+/// True while an approval dialog is open, so the popup does not close when it loses focus.
+pub(crate) fn is_asking() -> bool {
+    ASKING.load(Ordering::Acquire)
+}
+
 /// Clears [`ASKING`] however `ensure` ends.
 struct Asking;
 

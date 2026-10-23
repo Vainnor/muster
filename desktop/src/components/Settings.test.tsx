@@ -20,6 +20,8 @@ afterEach(() => {
 function setup() {
   const calls: string[] = [];
   mockIPC((cmd) => {
+    // The hotkey section loads its own settings; these tests are about theme commands.
+    if (cmd === "get_settings") return { theme: "system", popup_hotkey: null, popup_hotkey_active: false, wayland: false };
     calls.push(cmd);
     if (cmd === "preview_theme" || cmd === "import_theme") return preview;
     return null;

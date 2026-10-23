@@ -13,6 +13,9 @@ Working now:
 - Finds installed apps automatically (`.desktop` entries on Linux, `.app` bundles on macOS,
   Start Menu shortcuts on Windows); add any program, script or web link by hand.
 - Search-first launcher: type to filter, arrow keys to move, Enter to start, Escape to close.
+- Popup launcher: a hotkey you choose (Alt+Space by default) opens a small search window from
+  anywhere to start an app or group with the keyboard or mouse. On Wayland, bind
+  `muster --popup` in your compositor instead.
 - Groups: launch several apps with one action, in order, with optional delays, per-app
   arguments and working folder.
 - Before it runs something you added by hand, or an app with arguments or a folder you set,

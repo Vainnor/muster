@@ -11,7 +11,7 @@ pub(crate) async fn page() -> Result<impl View> {
         <p class="mt-3 text-muted-foreground">
             "Muster is in early development. Version 0.1.0 is an unsigned preview build: finding \
              apps, search, launching, groups, and theme import and export work. Closing groups, \
-             hotkeys, start on login, the theme editor and update checks are still to come."
+             a hotkey per group, start on login, the theme editor and update checks are still to come."
         </p>
         <div class="mt-8 grid gap-8">
             feature(
@@ -37,6 +37,7 @@ pub(crate) async fn page() -> Result<impl View> {
                 title: "Out of your way",
                 items: &[
                     "Keyboard first: type to search, Enter to launch.",
+                    "Press a hotkey of your choice from anywhere to open a small launcher window.",
                     "Lives in the tray or menu bar; optional start on login.",
                     "Uses close to no CPU while idle. Closing the window frees its memory.",
                 ]

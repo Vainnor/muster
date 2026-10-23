@@ -13,6 +13,8 @@ export default defineConfig({
     emptyOutDir: true,
     assetsInlineLimit: 0,
     sourcemap: false,
+    // Two pages: the main window and the popup launcher (desktop/src-tauri/src/popup.rs).
+    rollupOptions: { input: { main: "index.html", popup: "popup.html" } },
   },
   // Logic tests run in node; component tests opt into jsdom with a file comment.
   test: { environment: "node", include: ["src/**/*.test.ts", "src/**/*.test.tsx"] },

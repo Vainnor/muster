@@ -18,7 +18,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Runtime, State};
 
 use crate::state::{AppState, Notice};
-use crate::{approval, launcher, window};
+use crate::{approval, launcher};
 
 /// Error sent to the webview: a stable code and a message safe to show. Never a path.
 #[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
@@ -35,6 +35,14 @@ impl CommandError {
     pub(crate) const COOLING_DOWN: Self = Self {
         code: "busy",
         message: "You just said no. Wait a few seconds before asking Muster again.",
+    };
+    pub(crate) const HOTKEY_TAKEN: Self = Self {
+        code: "hotkey_taken",
+        message: "Muster could not claim that hotkey. Another app may already use it; pick another.",
+    };
+    pub(crate) const NO_GLOBAL_HOTKEYS: Self = Self {
+        code: "no_global_hotkeys",
+        message: "Global hotkeys do not work on Wayland. Bind `muster --popup` to a key in your compositor instead.",
     };
     pub(crate) const BUSY: Self = Self {
         code: "busy",
@@ -129,6 +137,20 @@ impl From<muster_core::Error> for CommandError {
                     }
                 }
             }
+            muster_core::Error::InvalidHotkey(h) => {
+                use muster_core::hotkey::HotkeyError;
+                match h {
+                    HotkeyError::NeedsModifier => {
+                        "Hold Ctrl, Alt, Shift or Super with the key (F1 to F12 can stand alone)."
+                    }
+                    HotkeyError::UnknownKey(_) => {
+                        "Muster cannot use that key for a hotkey. Escape is kept for closing."
+                    }
+                    HotkeyError::UnknownModifier(_)
+                    | HotkeyError::RepeatedModifier
+                    | HotkeyError::BadLength => "That is not a hotkey Muster understands.",
+                }
+            }
             muster_core::Error::Io { .. } | muster_core::Error::InvalidConfig(_) => {
                 "Your settings could not be saved."
             }
@@ -195,6 +217,12 @@ pub(crate) struct GroupView {
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub(crate) struct Settings {
     theme: String,
+    /// The saved popup hotkey, or `None` when it is off.
+    popup_hotkey: Option<String>,
+    /// Whether the OS accepted it. False with a saved hotkey means another app holds it.
+    popup_hotkey_active: bool,
+    /// Wayland sessions cannot register global hotkeys at all.
+    wayland: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -476,9 +504,48 @@ pub(crate) async fn run_group<R: Runtime>(
 
 #[tauri::command]
 pub(crate) fn get_settings(state: State<'_, AppState>) -> Result<Settings, CommandError> {
+    let library = state.library()?;
+    let settings = &library.config().settings;
     Ok(Settings {
-        theme: state.library()?.config().settings.theme.clone(),
+        theme: settings.theme.clone(),
+        popup_hotkey: settings.popup_hotkey.as_ref().map(ToString::to_string),
+        popup_hotkey_active: crate::hotkeys::popup_active(),
+        wayland: crate::hotkeys::session_is_wayland(),
     })
+}
+
+/// Sets the popup hotkey, or turns it off with `None`. The OS has to accept it before it is
+/// saved; if saving fails, the previous hotkey is registered again.
+#[tauri::command]
+pub(crate) fn set_popup_hotkey<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    hotkey: Option<String>,
+) -> Result<Option<String>, CommandError> {
+    let hotkey = hotkey
+        .as_deref()
+        .map(muster_core::hotkey::Hotkey::parse)
+        .transpose()
+        .map_err(muster_core::Error::from)?;
+    if hotkey.is_some() && crate::hotkeys::session_is_wayland() {
+        return Err(CommandError::NO_GLOBAL_HOTKEYS);
+    }
+    let old = state.library()?.config().settings.popup_hotkey.clone();
+    crate::hotkeys::set_popup(&app, hotkey.as_ref()).map_err(|e| {
+        crate::diag::report("registering the popup hotkey", e.as_ref());
+        CommandError::HOTKEY_TAKEN
+    })?;
+    let saved = hotkey.clone();
+    if let Err(e) = state.update(|lib| {
+        lib.config_mut().settings.popup_hotkey = saved;
+        Ok(())
+    }) {
+        if let Err(restore) = crate::hotkeys::set_popup(&app, old.as_ref()) {
+            crate::diag::report("restoring the popup hotkey", restore.as_ref());
+        }
+        return Err(e);
+    }
+    Ok(hotkey.map(|h| h.to_string()))
 }
 
 /// `system`, a preset id or an imported theme's id.
@@ -498,10 +565,13 @@ pub(crate) fn startup_notice(state: State<'_, AppState>) -> Result<Option<Notice
     state.take_notice()
 }
 
-/// Closes (destroys) the main window; Muster stays in the tray.
+/// Closes (destroys) the window that asked: the main window or the popup. Muster stays in
+/// the tray.
 #[tauri::command]
-pub(crate) fn close_window<R: Runtime>(app: AppHandle<R>) -> Result<(), CommandError> {
-    window::close(&app).map_err(|_| CommandError::INTERNAL)
+pub(crate) fn close_window<R: Runtime>(
+    window: tauri::WebviewWindow<R>,
+) -> Result<(), CommandError> {
+    window.destroy().map_err(|_| CommandError::INTERNAL)
 }
 
 #[cfg(test)]

@@ -38,6 +38,8 @@ export const runGroup = (id: string) => invoke<StepFailure[]>("run_group", { id 
 
 export const getSettings = () => invoke<Settings>("get_settings");
 export const setTheme = (id: string) => invoke<void>("set_theme", { id });
+/** Returns the hotkey as saved (canonical form), or null when turned off. */
+export const setPopupHotkey = (hotkey: string | null) => invoke<string | null>("set_popup_hotkey", { hotkey });
 export const startupNotice = () => invoke<Notice | null>("startup_notice");
 export const closeWindow = () => invoke<void>("close_window");
 

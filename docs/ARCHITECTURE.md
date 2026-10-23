@@ -9,7 +9,7 @@ website (Topcoat). All logic lives in `muster-core`; everything else is a thin l
 | --- | --- | --- |
 | `crates/muster-core` | `muster-core` | Model, launch validation and planning, groups, config store, theme parsing, app detection, the popup hotkey. No UI, Tauri, Topcoat or async runtime. |
 | `crates/muster-ui` | `muster-ui` | Turns a validated theme into `--mu-*` CSS custom properties. Shared by the desktop UI and the website. |
-| `desktop/src-tauri` | `muster-desktop` (bin `muster`) | Tauri shell: window, tray, single instance, autostart, global shortcuts, and the commands the UI may call. |
+| `desktop/src-tauri` | `muster-desktop` (bin `muster`) | Tauri shell: main window, popup launcher, tray, single instance, autostart, the popup hotkey, and the commands the UI may call. |
 | `desktop/src` | (npm) | React + TypeScript UI, built by Vite into `desktop/dist`, which Tauri embeds. |
 | `web` | `muster-web` | The marketing site, server-rendered with Topcoat. |
 | `themes` | | Preset theme JSON files and `theme.schema.json`. `muster-core` embeds the presets at compile time. |
@@ -55,7 +55,14 @@ The website uses the same presets: `GET /theme.css` renders the light and dark p
 Startup creates no window from config (`windows: []`); `setup` builds the tray and then the main
 window. Closing the window destroys its webview. The run loop calls `prevent_exit` when the exit
 has no code, so the process stays in the tray; the tray's Open item and a second launch (single
-instance) rebuild the window. Quit exits with code 0. The goal is that an idle Muster in the tray
+instance) rebuild the window. Quit exits with code 0.
+
+The popup launcher (`popup.rs`, page `popup.html`) is a second, smaller window with only the
+search list. The global hotkey (`hotkeys.rs`, from `settings.popup_hotkey`) or a second launch
+with `muster --popup` toggles it. It closes on Escape, when it loses focus (except while the
+approval dialog is open) and after something starts, and like the main window it is destroyed
+each time, so it holds no webview while closed. On Wayland the plugin cannot grab keys, so
+Muster registers nothing and the user binds `muster --popup` in their compositor. The goal is that an idle Muster in the tray
 holds no webview processes (`.claude/rules/performance.md`).
 
 ## Phase 0: why the desktop UI is React and not Topcoat
@@ -100,7 +107,7 @@ the only source.
 | `tauri` 2 (`tray-icon`) | desktop | The shell. |
 | `tauri-plugin-single-instance` | desktop | A second launch focuses the running app instead of starting another. |
 | `tauri-plugin-autostart` | desktop | Start on login, off by default, driven from Rust. |
-| `tauri-plugin-global-shortcut` | desktop | Per-group hotkeys, registered from Rust. |
+| `tauri-plugin-global-shortcut` | desktop | The popup hotkey (and later per-group hotkeys), registered from Rust. |
 | `tauri-plugin-dialog` (pinned `=2.8.1`) | desktop | The native approval dialog, shown from Rust so the webview cannot answer it. No JS permission. Brings `rfd` and, as a type dependency only, `tauri-plugin-fs`, which is never registered. |
 | `tauri-plugin-updater` | desktop, `updater` feature only | Signed update check, compiled out by default. Its default `zip` feature is off: it only handles legacy zipped Windows updates and pulls in zip 4.x with open advisories. |
 | `topcoat` `=0.10.0` | web | Server-rendered site; exact pin because the crate is pre-1.0 and the CLI must match. Features limited to router, view, serve, discover, asset, tailwind, ui. |

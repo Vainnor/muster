@@ -26,6 +26,7 @@
     "allow-run-group",
     "allow-get-settings",
     "allow-set-theme",
+    "allow-set-popup-hotkey",
     "allow-startup-notice",
     "allow-close-window"
   ]

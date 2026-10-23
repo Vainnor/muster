@@ -38,6 +38,16 @@ new capability, command, CSP source, plugin, file location or import format.
   events. No `core:default`, no shell, fs or opener plugin, no `remote.urls`. Autostart,
   shortcuts and the dialog plugin have no JS permission; the dialog plugin's own commands are
   registered but denied.
+- The popup launcher window (label `popup`, `capabilities/popup.json`) gets less: theme tokens,
+  settings, listing apps and groups, `launch_app`, `run_group` and `close_window`. It cannot
+  add or remove apps, edit groups, change settings or listen to events, and launches from it go
+  through the same approval dialog. `close_window` destroys only the window that calls it.
+- The popup hotkey is registered from Rust (`hotkeys.rs`); the webview has no global-shortcut
+  permission. `set_popup_hotkey` takes a string that `muster_core::hotkey::Hotkey` validates
+  (a fixed set of modifiers and keys, a modifier required except for F1 to F12, Escape kept for
+  closing) before the OS sees it, so a hostile page can at most pick another valid hotkey.
+- A second launch with `--popup` opens the popup through single instance. Only that exact flag
+  is read from the forwarded arguments; nothing else in them is used.
 - No command takes a file path to read or write. The webview can add an app with any valid
   target and ask to launch an app or group by id. A manual app, or a group entry that is manual
   or overrides arguments or the folder, runs only after the user approves its exact target in
