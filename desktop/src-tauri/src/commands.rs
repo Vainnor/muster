@@ -74,7 +74,16 @@ impl From<muster_core::Error> for CommandError {
                     "The arguments are too long or contain invalid characters."
                 }
                 TargetError::BatchArgument => {
-                    "Arguments to a .bat or .cmd file cannot contain % ! & | < > ^ or quotes."
+                    "Arguments to a .bat or .cmd file cannot contain % ! & | < > ^, quotes or line breaks."
+                }
+                TargetError::BatchPath => {
+                    "The path to a .bat or .cmd file cannot contain % ! & | < > ^ or quotes."
+                }
+                TargetError::AmbiguousFileName => {
+                    "The program's file name cannot end in a dot or space or contain a colon."
+                }
+                TargetError::ShadowedByExe => {
+                    "A file with the same name plus .exe is next to it, and Windows would run that instead."
                 }
                 TargetError::BadUrl => "That is not a valid web or mail link.",
                 TargetError::SchemeNotAllowed(_) => {

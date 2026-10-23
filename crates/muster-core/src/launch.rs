@@ -58,6 +58,12 @@ pub enum TargetError {
     ArgTooLong,
     #[error("an argument to a batch file contains a character cmd.exe treats specially")]
     BatchArgument,
+    #[error("a batch file's path contains a character cmd.exe treats specially")]
+    BatchPath,
+    #[error("program file name ends in a dot or space, or names a stream")]
+    AmbiguousFileName,
+    #[error("a file with the same name plus .exe exists and would run instead")]
+    ShadowedByExe,
     #[error("URL is not valid")]
     BadUrl,
     #[error("URL scheme `{0}` is not allowed")]
@@ -85,6 +91,7 @@ pub fn validate(target: &LaunchTarget) -> Result<(), TargetError> {
     match target {
         LaunchTarget::Program { path, args, cwd } => {
             check_path_shape(path)?;
+            check_program_name(path)?;
             let meta = std::fs::metadata(path).map_err(|_| TargetError::NotFound)?;
             if !meta.is_file() {
                 return Err(TargetError::NotAFile);
@@ -98,8 +105,13 @@ pub fn validate(target: &LaunchTarget) -> Result<(), TargetError> {
             if args.iter().any(|a| a.contains('\0')) {
                 return Err(TargetError::NulByte);
             }
-            if is_batch_file(path) && args.iter().any(|a| a.contains(BATCH_SPECIAL)) {
-                return Err(TargetError::BatchArgument);
+            if is_batch_file(path) {
+                if path.to_string_lossy().contains(BATCH_SPECIAL) {
+                    return Err(TargetError::BatchPath);
+                }
+                if args.iter().any(|a| a.contains(BATCH_SPECIAL)) {
+                    return Err(TargetError::BatchArgument);
+                }
             }
             if let Some(dir) = cwd {
                 check_path_shape(dir)?;
@@ -132,10 +144,41 @@ pub fn validate(target: &LaunchTarget) -> Result<(), TargetError> {
 /// argument with none of these needs no escaping to mean what the approval dialog showed.
 const BATCH_SPECIAL: &[char] = &['%', '!', '&', '|', '<', '>', '^', '"', '\r', '\n'];
 
-/// A `.bat` or `.cmd` file, checked on every OS so the rule is tested everywhere.
+/// A file Windows runs through `cmd.exe`. Rust's standard library decides with a
+/// case-insensitive suffix test on the file name, so this does too: `.bat` alone counts, which
+/// `Path::extension` would miss. Checked on every OS so the rule is tested everywhere.
 fn is_batch_file(path: &Path) -> bool {
-    path.extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case("bat") || e.eq_ignore_ascii_case("cmd"))
+    path.file_name().is_some_and(|name| {
+        let name = name.to_string_lossy();
+        ends_with_ignore_case(&name, ".bat") || ends_with_ignore_case(&name, ".cmd")
+    })
+}
+
+fn ends_with_ignore_case(name: &str, suffix: &str) -> bool {
+    name.get(name.len().saturating_sub(suffix.len())..)
+        .is_some_and(|end| end.len() == suffix.len() && end.eq_ignore_ascii_case(suffix))
+}
+
+/// Rejects program names Windows would read differently from the path that was validated and
+/// shown: a trailing dot or space (Windows strips them, so `run.bat.` runs `run.bat`), a `:`
+/// (an alternate data stream), and a path without `.exe` next to a file that adds it (Windows
+/// runs `run.bat.exe` in place of `run.bat`). Checked on every OS for the same reason.
+fn check_program_name(path: &Path) -> Result<(), TargetError> {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    if name.is_empty() || name.ends_with(['.', ' ']) || name.contains(':') {
+        return Err(TargetError::AmbiguousFileName);
+    }
+    if !ends_with_ignore_case(&name, ".exe") {
+        let mut with_exe = path.as_os_str().to_owned();
+        with_exe.push(".exe");
+        if Path::new(&with_exe).exists() {
+            return Err(TargetError::ShadowedByExe);
+        }
+    }
+    Ok(())
 }
 
 /// Re-validates `target` and turns it into a plan.
@@ -348,6 +391,53 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn treats_every_name_windows_runs_through_cmd_as_a_batch_file() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in [".bat", ".CMD", "run.Bat"] {
+            let script = dir.path().join(name);
+            std::fs::write(&script, b"").unwrap();
+            assert_eq!(
+                validate(&program_with_args(script, &["a&b"])),
+                Err(TargetError::BatchArgument),
+                "{name}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_cmd_special_characters_in_a_batch_files_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let odd = dir.path().join("x%CD:~0,0%y");
+        std::fs::create_dir(&odd).unwrap();
+        let script = odd.join("run.bat");
+        std::fs::write(&script, b"").unwrap();
+        assert_eq!(validate(&program(script)), Err(TargetError::BatchPath));
+    }
+
+    #[test]
+    fn rejects_names_windows_would_read_differently() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["run.bat.", "run.bat ", "run.bat:stream"] {
+            let path = dir.path().join(name);
+            assert_eq!(
+                validate(&program(path)),
+                Err(TargetError::AmbiguousFileName),
+                "{name:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_a_program_shadowed_by_an_exe_beside_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("run.bat");
+        std::fs::write(&script, b"").unwrap();
+        assert_eq!(validate(&program(script.clone())), Ok(()));
+        std::fs::write(dir.path().join("run.bat.exe"), b"").unwrap();
+        assert_eq!(validate(&program(script)), Err(TargetError::ShadowedByExe));
     }
 
     #[test]

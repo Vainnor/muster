@@ -66,8 +66,12 @@ reach the network.
   url.dll,FileProtocolHandler` on Windows. No shell, no elevation.
 - The exception is a `.bat` or `.cmd` target: Windows runs it through `cmd.exe`, which parses
   its own command line and expands `%VAR%` and `!VAR!`. Rust's standard library escapes batch
-  arguments, and `launch::validate` also rejects any argument to one that holds
-  `% ! & | < > ^ "` or a line break, so what the approval dialog shows is what `cmd.exe` gets.
+  arguments, and `launch::validate` also rejects `% ! & | < > ^ "` and line breaks in its
+  arguments and those characters in its path. It treats a file as a batch file the way the
+  standard library does (a case-insensitive `.bat`/`.cmd` suffix on the name), and rejects any
+  program name Windows reads differently from the one shown: a trailing dot or space, a `:`
+  (alternate data stream), or a path without `.exe` that has a `<path>.exe` beside it, which
+  Windows would run instead.
 - Approval is per target, not per group: `config.approved` holds the exact targets the user
   OK'd. Changing an entry's arguments or folder, or a pinned app's target changing on a rescan,
   makes a different target that needs approving again. The dialog shows every path and
