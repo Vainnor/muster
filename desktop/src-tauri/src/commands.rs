@@ -141,7 +141,7 @@ impl From<muster_core::Error> for CommandError {
                 use muster_core::hotkey::HotkeyError;
                 match h {
                     HotkeyError::NeedsModifier => {
-                        "Hold Ctrl, Alt, Shift or Super with the key (F1 to F12 can stand alone)."
+                        "Hold Ctrl, Alt or Super with the key (F1 to F12 can stand alone)."
                     }
                     HotkeyError::UnknownKey(_) => {
                         "Muster cannot use that key for a hotkey. Escape is kept for closing."

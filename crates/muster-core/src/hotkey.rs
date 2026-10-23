@@ -61,7 +61,7 @@ pub enum HotkeyError {
     RepeatedModifier,
     #[error("`{0}` is not a key Muster can use for a hotkey")]
     UnknownKey(String),
-    #[error("a hotkey needs Ctrl, Alt, Shift or Super, unless the key is F1 to F12")]
+    #[error("a hotkey needs Ctrl, Alt or Super, unless the key is F1 to F12")]
     NeedsModifier,
 }
 
@@ -97,7 +97,12 @@ impl Hotkey {
         let is_function_key = key
             .strip_prefix('F')
             .is_some_and(|n| n.parse::<u8>().is_ok());
-        if !held.contains(&true) && !is_function_key {
+        // Shift alone is not enough: Shift+A is a capital A, and the grab is system-wide.
+        let shift_only = held
+            .iter()
+            .zip(MODIFIERS)
+            .all(|(on, (name, _))| !on || *name == "Shift");
+        if shift_only && !is_function_key {
             return Err(HotkeyError::NeedsModifier);
         }
 
@@ -184,11 +189,20 @@ mod tests {
     fn a_function_key_may_stand_alone() {
         assert_eq!(ok("f12"), "F12");
         assert_eq!(ok("F1"), "F1");
+        assert_eq!(ok("Shift+F1"), "Shift+F1");
     }
 
     #[test]
     fn other_keys_need_a_modifier() {
-        for raw in ["A", "Space", "Enter", "1"] {
+        for raw in [
+            "A",
+            "Space",
+            "Enter",
+            "1",
+            "Shift+A",
+            "Shift+1",
+            "Shift+Space",
+        ] {
             assert_eq!(Hotkey::parse(raw), Err(HotkeyError::NeedsModifier), "{raw}");
         }
     }

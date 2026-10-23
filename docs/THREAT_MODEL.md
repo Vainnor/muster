@@ -44,8 +44,11 @@ new capability, command, CSP source, plugin, file location or import format.
   through the same approval dialog. `close_window` destroys only the window that calls it.
 - The popup hotkey is registered from Rust (`hotkeys.rs`); the webview has no global-shortcut
   permission. `set_popup_hotkey` takes a string that `muster_core::hotkey::Hotkey` validates
-  (a fixed set of modifiers and keys, a modifier required except for F1 to F12, Escape kept for
-  closing) before the OS sees it, so a hostile page can at most pick another valid hotkey.
+  (a fixed set of modifiers and keys, Ctrl, Alt or Super required except for F1 to F12, Escape
+  kept for closing) before the OS sees it. A hostile page can still pick a valid hotkey that
+  gets in the way, such as Ctrl+C, which the OS then routes to Muster everywhere; the user
+  changes it back in Settings. That gives it nothing it lacks already: it can launch detected
+  apps directly.
 - A second launch with `--popup` opens the popup through single instance. Only that exact flag
   is read from the forwarded arguments; nothing else in them is used.
 - No command takes a file path to read or write. The webview can add an app with any valid
