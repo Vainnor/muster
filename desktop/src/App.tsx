@@ -4,6 +4,7 @@ import { AddApp } from "./components/AddApp";
 import { GroupEditor } from "./components/GroupEditor";
 import { Launcher } from "./components/Launcher";
 import { Settings } from "./components/Settings";
+import { closeSummary } from "./lib/close";
 import { MAC, displayHotkey } from "./lib/hotkey";
 import * as ipc from "./lib/ipc";
 import { useTheme } from "./lib/useTheme";
@@ -77,6 +78,15 @@ export function App() {
       if (group.needs_confirmation) void reloadGroups();
     } catch (e) {
       failOrCancel(e);
+    }
+  };
+
+  const closeGroup = async (group: GroupView) => {
+    say(`Closing ${group.name}…`);
+    try {
+      setStatus(closeSummary(group.name, await ipc.closeGroup(group.id), appName));
+    } catch (e) {
+      fail(e);
     }
   };
 
@@ -192,6 +202,9 @@ export function App() {
                 </span>
                 <button type="button" className="button button--primary" onClick={() => void startGroup(g)}>
                   Run
+                </button>
+                <button type="button" className="button" onClick={() => void closeGroup(g)}>
+                  Close
                 </button>
                 <button type="button" className="button" onClick={() => setView({ name: "edit", group: g })}>
                   Edit

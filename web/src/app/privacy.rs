@@ -44,6 +44,9 @@ pub(crate) async fn page() -> Result<impl View> {
                     "To find installed apps, Muster reads app names, icons and launch commands from the standard app folders. It does not read your documents, recent files or browser data."
                 </li>
                 <li>
+                    "When you close a group, Muster looks at the programs running under your account to find the group's apps, asks them to quit, and offers to force quit any that stay open. It keeps nothing from that list once it is done."
+                </li>
+                <li>
                     "If you turn on start on login, Muster adds one entry to your system's list of programs to start when you log in. It holds only where Muster is installed. Turning the setting off removes it."
                 </li>
                 <li>"Muster stores no passwords, tokens or keys."</li>

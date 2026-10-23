@@ -74,7 +74,6 @@ pub(crate) fn texts(targets: &[LaunchTarget]) -> Option<Vec<String>> {
     Some(out)
 }
 
-/// Returns once every target in `pending` is approved, asking the user if any are not.
 /// Whether a [`tell`] dialog is open; only one is shown at a time.
 static TELLING: AtomicBool = AtomicBool::new(false);
 
@@ -92,6 +91,7 @@ pub(crate) fn tell<R: Runtime>(app: &AppHandle<R>, title: &str, text: String) {
         .show(|_| TELLING.store(false, Ordering::Release));
 }
 
+/// Returns once every target in `pending` is approved, asking the user if any are not.
 pub(crate) async fn ensure<R: Runtime>(
     app: &AppHandle<R>,
     state: &AppState,
@@ -138,6 +138,73 @@ pub(crate) async fn ensure<R: Runtime>(
     state.update(|lib| lib.approve(&pending))
 }
 
+const LEAVE_RUNNING: &str = "Leave running";
+const FORCE_QUIT: &str = "Force quit";
+const FORCE_HEADER: &str = "These apps did not quit when asked:\n";
+const FORCE_FOOTER: &str = "\n\nForce quitting them loses anything they have not saved.";
+/// Longer app names are cut, so a few names cannot fill the dialog.
+const MAX_NAME: usize = 80;
+
+/// The force-quit question for `names`, at most [`MAX_TEXT`] bytes.
+pub(crate) fn force_quit_text(names: &[String]) -> String {
+    let mut text = String::from(FORCE_HEADER);
+    for (shown, name) in names.iter().enumerate() {
+        let name: String = name
+            .chars()
+            .filter(|c| !c.is_control())
+            .take(MAX_NAME)
+            .collect();
+        let line = format!("\n• {name}");
+        let rest = format!("\n• and {} more", names.len() - shown);
+        if text.len() + line.len() + rest.len() + FORCE_FOOTER.len() > MAX_TEXT {
+            text.push_str(&rest);
+            break;
+        }
+        text.push_str(&line);
+    }
+    text.push_str(FORCE_FOOTER);
+    text
+}
+
+/// Asks whether to force quit the apps in `names`. "Leave running" is the first button, so it
+/// is the default, and only "Force quit" answers yes. With another Muster dialog open, or
+/// within the cooldown after the user said no to any of them, the answer is no without asking,
+/// so script cannot keep the question up until a stray key press answers it.
+pub(crate) async fn confirm_force_quit<R: Runtime>(
+    app: &AppHandle<R>,
+    names: Vec<String>,
+) -> Result<bool, CommandError> {
+    let cooling = DECLINED_AT
+        .lock()
+        .map_err(|_| CommandError::INTERNAL)?
+        .is_some_and(|at| at.elapsed() < COOL_DOWN);
+    if cooling || ASKING.swap(true, Ordering::AcqRel) {
+        return Ok(false);
+    }
+    let _asking = Asking;
+    let handle = app.clone();
+    let answer = tauri::async_runtime::spawn_blocking(move || {
+        handle
+            .dialog()
+            .message(force_quit_text(&names))
+            .title("Force quit?")
+            .kind(MessageDialogKind::Warning)
+            .buttons(MessageDialogButtons::YesNoCancelCustom(
+                LEAVE_RUNNING.into(),
+                FORCE_QUIT.into(),
+                CANCEL.into(),
+            ))
+            .blocking_show_with_result()
+    })
+    .await
+    .map_err(|_| CommandError::INTERNAL)?;
+    let force = answer == MessageDialogResult::Custom(FORCE_QUIT.into());
+    if !force {
+        *DECLINED_AT.lock().map_err(|_| CommandError::INTERNAL)? = Some(Instant::now());
+    }
+    Ok(force)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,6 +234,25 @@ mod tests {
         assert!(t.iter().all(|t| t.len() <= MAX_TEXT && t.ends_with(FOOTER)));
         let shown: usize = t.iter().map(|t| t.matches('•').count()).sum();
         assert_eq!(shown, 60, "every target appears exactly once");
+    }
+
+    #[test]
+    fn force_quit_text_names_each_app() {
+        let text = force_quit_text(&["Editor".into(), "Sync".into()]);
+        assert_eq!(
+            text,
+            format!("{FORCE_HEADER}\n• Editor\n• Sync{FORCE_FOOTER}")
+        );
+    }
+
+    #[test]
+    fn force_quit_text_fits_however_many_apps() {
+        let names: Vec<String> = (0..200).map(|n| format!("{n:>200}")).collect();
+        let text = force_quit_text(&names);
+        assert!(text.len() <= MAX_TEXT, "{}", text.len());
+        assert!(text.contains(" more"));
+        assert!(text.ends_with(FORCE_FOOTER));
+        assert!(!force_quit_text(&["a\nb".into()]).contains("a\nb"));
     }
 
     #[test]

@@ -10,6 +10,7 @@ mod diag;
 mod hotkeys;
 mod launcher;
 mod popup;
+mod processes;
 mod state;
 mod tray;
 mod window;
@@ -72,6 +73,7 @@ pub fn run() -> anyhow::Result<()> {
             commands::save_group,
             commands::delete_group,
             commands::run_group,
+            commands::close_group,
             commands::get_settings,
             commands::set_theme,
             commands::startup_notice,

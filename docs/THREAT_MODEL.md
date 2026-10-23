@@ -83,8 +83,11 @@ new capability, command, CSP source, plugin, file location or import format.
 - The UI applies theme tokens only when the name matches `^--mu-[a-z0-9-]+$`.
 
 So injected script could start detected apps without overrides, and approved entries, could
-add entries and groups, and could turn start on login on or off without a dialog (which makes
-only Muster itself start at login). Anything else it asks to run puts a native dialog in front of
+add entries and groups, could turn start on login on or off without a dialog (which makes
+only Muster itself start at login), and could close a group of detected apps and approved entries. On macOS
+and Windows that request is the app's own Quit or window close, which leaves a save prompt
+up; on Linux it is `SIGTERM`, which many apps handle by exiting without asking, so unsaved
+work in a detected app can be lost. Anything else it asks to run puts a native dialog in front of
 the user listing the exact command line; it cannot answer that dialog. It cannot read files or
 reach the network.
 
@@ -122,6 +125,44 @@ reach the network.
   open at a time.
 - Overrides on detected apps need approval too: arguments for a detected shell or PowerShell
   are a command line.
+
+**Closing something the user did not mean to close.** `close_group` (main window only, not
+the popup) quits every running copy of each app in the group that belongs to the user, as
+the user chose; `muster_core::close::plan_close` decides what matches.
+- Closing is gated like running: a manual entry, or one with overrides, closes only once its
+  exact target is in `config.approved`. Without that, a page could add `/usr/bin/gnome-shell`
+  or `explorer.exe` as an app, put it in a group and close the desktop session.
+- Only the user's own processes, never Muster's own process, and never one whose program
+  cannot be read (another user's, or one that exited). An `AppImage` target matches nothing:
+  its matching process serves the app's files, and quitting that crashes the app (and would
+  crash Muster's own `AppImage`).
+- An entry with arguments matches only that exact command line. A shell, interpreter or
+  shared launcher with no arguments (`bash`, `cmd`, `python`, `node`, `env`, `snap`,
+  `flatpak`, `wine`, `explorer`, `rundll32` and others, checked on the target as written and
+  resolved) matches nothing, since it would close every terminal or the desktop. A script matches its interpreter only when the script is the first
+  argument. A bundle matches its `Contents/MacOS` executable, not helpers inside it. A match
+  whose parent also matches is left to close with its parent.
+- The request to quit is the polite one on each OS: `NSRunningApplication::terminate` for a
+  macOS app (`SIGTERM` for a process with no app), `taskkill /PID` without `/F` on Windows,
+  `SIGTERM` on Linux. `taskkill` runs from `%SystemRoot%\System32` by absolute path with an
+  argument array, and never from `PATH`.
+- Targets match as written and with symlinks resolved, and Windows' `\\?\` prefix removed. On
+  macOS the reported program is the path the process was started with, resolved by Muster;
+  a process can change what it reports, which only lets it avoid being closed or ask to be.
+- Force quitting (`SIGKILL`, `taskkill /F`) happens only after "Force quit" in a native dialog
+  from Rust, which names the apps; "Leave running" is the first and default button, as in the
+  approval dialog, and after it the dialog does not come back for 5 seconds. Its GTK default
+  button needs the same manual check on each release as the approval dialog's. Right before
+  killing, Muster lists again, matches against the group as it is then, and kills only
+  processes it asked to quit (or their helpers from the first listing) that are still the same
+  process: same program, arguments, owner and start time. A pid the OS has reused, or an entry
+  the webview changed or removed while the dialog was open, is spared; a group deleted
+  meanwhile gets no dialog at all. A pid reused in the moment between that listing and the
+  signal is an accepted risk.
+- Approving a manual target with no arguments also lets closing quit every running copy of
+  that program. The approval dialog asks about running only.
+- One close runs at a time. The process list (arguments included) stays in memory for that
+  close only and is never logged or sent to the webview, which gets back one outcome per entry.
 
 **A login entry that starts the wrong program.** Start on login (`autostart.rs`, built by
 `muster_core::login`) writes one entry outside the app's own folders, only when the user turns

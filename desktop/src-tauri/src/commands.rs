@@ -53,6 +53,10 @@ impl CommandError {
         code: "running_from_download",
         message: "Move Muster to your Applications folder and open it from there, then turn this on.",
     };
+    pub(crate) const STILL_CLOSING: Self = Self {
+        code: "busy",
+        message: "Muster is still closing a group.",
+    };
     pub(crate) const BUSY: Self = Self {
         code: "busy",
         message: "Answer the open Muster dialog first.",
@@ -533,6 +537,17 @@ pub(crate) async fn run_group<R: Runtime>(
         .collect();
     launcher::run_steps(app, steps)?;
     Ok(failures)
+}
+
+/// Asks every running copy of the group's apps to quit, waits a few seconds, and offers to
+/// force quit what is left in a native dialog (`processes.rs`).
+#[tauri::command]
+pub(crate) async fn close_group<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Vec<crate::processes::Closed>, CommandError> {
+    crate::processes::close(&app, &state, &GroupId(id)).await
 }
 
 #[tauri::command]
