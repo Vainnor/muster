@@ -9,6 +9,7 @@
 //! parsed or launched are counted in [`Scan::skipped`], not reported one by one: their paths
 //! are under the user's home and must not reach logs (`.claude/rules/privacy.md`).
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use crate::launch::LaunchTarget;
@@ -97,7 +98,14 @@ pub(crate) fn read_small(path: &Path) -> Option<Vec<u8>> {
     if !meta.is_file() || meta.len() > MAX_ENTRY_BYTES {
         return None;
     }
-    std::fs::read(path).ok()
+    // The file can grow between the check and the read, so the read is capped too.
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)
+        .ok()?
+        .take(MAX_ENTRY_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .ok()?;
+    (bytes.len() as u64 <= MAX_ENTRY_BYTES).then_some(bytes)
 }
 
 /// One directory entry seen by [`walk`].
