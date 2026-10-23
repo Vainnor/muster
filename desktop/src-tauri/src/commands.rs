@@ -342,9 +342,14 @@ pub(crate) async fn list_apps(state: State<'_, AppState>) -> Result<Vec<AppView>
     Ok(app_views(&library))
 }
 
+/// One scan at a time: concurrent requests wait their turn, so the webview cannot start many
+/// scans at once, each with its own plist-parsing thread.
+static SCAN: tauri::async_runtime::Mutex<()> = tauri::async_runtime::Mutex::const_new(());
+
 /// Scans the disk again, off the main thread.
 #[tauri::command]
 pub(crate) async fn refresh_apps(state: State<'_, AppState>) -> Result<Vec<AppView>, CommandError> {
+    let _one_at_a_time = SCAN.lock().await;
     let scan = tauri::async_runtime::spawn_blocking(muster_core::detect::detect_installed)
         .await
         .map_err(|_| CommandError::INTERNAL)?;

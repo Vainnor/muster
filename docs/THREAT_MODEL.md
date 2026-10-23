@@ -110,7 +110,8 @@ file, bundle or shortcut into a scanned folder, so detection treats them as untr
   The plist crate drops nested values recursively, including inside `from_reader` when a parse
   fails, and a file under the cap can nest up to 131,072 levels (ASCII format). So each parse
   runs on its own thread with a 64 MiB stack (`PARSE_STACK`), which tests show holds the
-  deepest such file in a debug build.
+  deepest such file in a debug build. `refresh_apps` runs one scan at a time, so concurrent requests
+  from the webview queue instead of each holding a parsing thread.
 - A detected app is validated by `launch::plan` each time it runs; a pinned copy in the config
   is not validated when it is pinned.
 
