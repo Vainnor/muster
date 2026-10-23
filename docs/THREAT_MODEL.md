@@ -137,3 +137,7 @@ image name, tag and commit.
   is out of scope; the approval dialog for manual entries and overrides is the only speed bump.
 - Anything with write access to the user's config dir can change what Muster launches. That
   attacker can already run code as the user.
+- Tauri deserializes a command's arguments before the command runs, so a string from the
+  webview is in memory in full before Rust checks its size (`themes::MAX_THEME_BYTES` and the
+  other limits bound what is parsed and stored, not what IPC accepts). Script that could send a
+  huge string can already exhaust the webview's own memory.
