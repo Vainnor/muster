@@ -71,7 +71,7 @@ export interface GroupDraft {
 }
 
 /** processes::Outcome: what closing a group did for one entry. */
-export type CloseOutcome = "closed" | "still_running" | "not_running" | "link" | "too_broad";
+export type CloseOutcome = "closed" | "still_running" | "not_running" | "link" | "too_broad" | "unsupported" | "needs_approval";
 
 /** processes::Closed */
 export interface ClosedEntry {

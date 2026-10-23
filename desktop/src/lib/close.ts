@@ -9,6 +9,8 @@ export function closeSummary(group: string, closed: ClosedEntry[], appName: (id:
   if (closedNames) parts.push(`Closed ${closedNames}.`);
   if (stillRunning) parts.push(`Still running: ${stillRunning}.`);
   if (names("too_broad")) parts.push(`Not closed, since it would close other programs too: ${names("too_broad")}.`);
+  if (names("unsupported")) parts.push(`Muster cannot close AppImages yet: ${names("unsupported")}.`);
+  if (names("needs_approval")) parts.push(`Run the group once to approve these before closing them: ${names("needs_approval")}.`);
   if (parts.length === 0) parts.push(`Nothing from ${group} was running.`);
   return { text: parts.join(" "), error: stillRunning !== "" };
 }

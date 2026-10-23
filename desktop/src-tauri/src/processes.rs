@@ -10,7 +10,7 @@
 //! `SIGTERM` on Linux. A process that is still there afterwards is force quit only from the
 //! dialog, and only if a fresh listing still matches it.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
@@ -47,6 +47,8 @@ pub(crate) enum Outcome {
     NotRunning,
     Link,
     TooBroad,
+    Unsupported,
+    NeedsApproval,
 }
 
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
@@ -65,7 +67,7 @@ pub(crate) async fn close<R: Runtime>(
     }
     let _closing = Closing;
 
-    let first = look(state, id).await?;
+    let (first, seen) = look(state, id).await?;
     let asked: HashSet<AppId> = running(&first).collect();
     let pids: Vec<u32> = first.iter().flat_map(pids_of).collect();
     blocking(move || {
@@ -77,42 +79,57 @@ pub(crate) async fn close<R: Runtime>(
     })
     .await?;
 
+    // If the group is deleted meanwhile, the last look stands.
     let mut now = first.clone();
     let mut waited = Duration::ZERO;
     while waited < GRACE && running(&now).any(|a| asked.contains(&a)) {
         blocking(|| std::thread::sleep(LOOK_AGAIN)).await?;
         waited += LOOK_AGAIN;
-        now = look(state, id).await?;
+        match look_again(state, id).await? {
+            Some((entries, _)) => now = entries,
+            None => break,
+        }
     }
 
-    let stubborn: Vec<AppId> = running(&now).filter(|a| asked.contains(a)).collect();
-    if !stubborn.is_empty() {
+    let stubborn: Vec<&EntryClose> = now.iter().filter(|e| asked.contains(&e.app)).collect();
+    let stubborn_pids: HashSet<u32> = stubborn.iter().flat_map(|e| pids_of(e)).collect();
+    if !stubborn_pids.is_empty() {
         let names = {
             let library = state.library()?;
-            stubborn
-                .iter()
-                .map(|a| library.find(a).map_or_else(|| a.0.clone(), |e| e.name))
-                .collect::<Vec<_>>()
+            let mut names: Vec<String> = Vec::new();
+            for entry in &stubborn {
+                let name = library
+                    .find(&entry.app)
+                    .map_or_else(|| entry.app.0.clone(), |e| e.name);
+                if !names.contains(&name) {
+                    names.push(name);
+                }
+            }
+            names
         };
         if crate::approval::confirm_force_quit(app, names).await? {
-            // Listed again so a process that exited, and a pid the OS gave to something
-            // else since, is not killed.
-            let fresh = look(state, id).await?;
-            let pids: Vec<u32> = fresh
-                .iter()
-                .filter(|e| stubborn.contains(&e.app))
-                .flat_map(pids_of)
-                .collect();
-            blocking(move || {
-                for pid in pids {
-                    if let Err(e) = os::force_quit(pid) {
-                        crate::diag::report("force quitting an app", &e);
+            // Only processes the user was asked about, still running the same program with the
+            // same arguments as when they were first asked to quit: a pid the OS has given to
+            // something else since, or an entry changed while the dialog was open, is spared.
+            if let Some((_, fresh)) = look_again(state, id).await? {
+                let pids: Vec<u32> = fresh
+                    .values()
+                    .filter(|p| stubborn_pids.contains(&p.pid) && seen.get(&p.pid) == Some(*p))
+                    .map(|p| p.pid)
+                    .collect();
+                blocking(move || {
+                    for pid in pids {
+                        if let Err(e) = os::force_quit(pid) {
+                            crate::diag::report("force quitting an app", &e);
+                        }
                     }
+                })
+                .await?;
+                blocking(|| std::thread::sleep(LOOK_AGAIN)).await?;
+                if let Some((entries, _)) = look_again(state, id).await? {
+                    now = entries;
                 }
-            })
-            .await?;
-            blocking(|| std::thread::sleep(LOOK_AGAIN)).await?;
-            now = look(state, id).await?;
+            }
         }
     }
 
@@ -126,21 +143,39 @@ pub(crate) async fn close<R: Runtime>(
                 CloseMatch::NotRunning => Outcome::NotRunning,
                 CloseMatch::Link => Outcome::Link,
                 CloseMatch::TooBroad => Outcome::TooBroad,
+                CloseMatch::Unsupported => Outcome::Unsupported,
+                CloseMatch::NeedsApproval => Outcome::NeedsApproval,
             },
             app: e.app.0,
         })
         .collect())
 }
 
+/// Processes by pid, as listed.
+type Seen = HashMap<u32, RunningProcess>;
+
 /// Lists processes and matches them to the group as it is now.
-async fn look(state: &AppState, id: &GroupId) -> Result<Vec<EntryClose>, CommandError> {
+async fn look(state: &AppState, id: &GroupId) -> Result<(Vec<EntryClose>, Seen), CommandError> {
     let processes = blocking(os::list).await?.map_err(|e| {
         crate::diag::report("listing running apps", e.as_ref());
         CommandError::INTERNAL
     })?;
-    Ok(state
+    let entries = state
         .library()?
-        .plan_close(id, &processes, std::process::id())?)
+        .plan_close(id, &processes, std::process::id())?;
+    Ok((entries, processes.into_iter().map(|p| (p.pid, p)).collect()))
+}
+
+/// [`look`], or `None` once the group no longer exists.
+async fn look_again(
+    state: &AppState,
+    id: &GroupId,
+) -> Result<Option<(Vec<EntryClose>, Seen)>, CommandError> {
+    match look(state, id).await {
+        Ok(found) => Ok(Some(found)),
+        Err(e) if e.code == CommandError::from(muster_core::Error::UnknownId).code => Ok(None),
+        Err(e) => Err(e),
+    }
 }
 
 fn running(entries: &[EntryClose]) -> impl Iterator<Item = AppId> + '_ {
@@ -287,7 +322,7 @@ fn list_with_sysinfo() -> anyhow::Result<Vec<RunningProcess>> {
         .filter_map(|(pid, process)| {
             Some(RunningProcess {
                 pid: pid.as_u32(),
-                exe: process.exe()?.to_owned(),
+                exe: reported_exe(process.exe()?),
                 args: process
                     .cmd()
                     .iter()
@@ -299,6 +334,18 @@ fn list_with_sysinfo() -> anyhow::Result<Vec<RunningProcess>> {
             })
         })
         .collect())
+}
+
+/// macOS reports the path a process was started with, which may be a symlink (Homebrew's
+/// `bin`); resolving it lets it match a target written either way. Windows reports the
+/// resolved path already.
+#[cfg(any(windows, target_os = "macos"))]
+fn reported_exe(exe: &std::path::Path) -> std::path::PathBuf {
+    if cfg!(target_os = "macos") && exe.is_absolute() {
+        std::fs::canonicalize(exe).unwrap_or_else(|_| exe.to_owned())
+    } else {
+        exe.to_owned()
+    }
 }
 
 #[cfg(target_os = "macos")]

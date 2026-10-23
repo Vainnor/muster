@@ -28,6 +28,16 @@ describe("closeSummary", () => {
     expect(closeSummary("Work", closed, name).text).toBe("Not closed, since it would close other programs too: Shell.");
   });
 
+  it("says which entries need approving or cannot close", () => {
+    const closed: ClosedEntry[] = [
+      { app: "m:editor", outcome: "needs_approval" },
+      { app: "m:sync", outcome: "unsupported" },
+    ];
+    expect(closeSummary("Work", closed, name).text).toBe(
+      "Muster cannot close AppImages yet: Sync. Run the group once to approve these before closing them: Editor.",
+    );
+  });
+
   it("says when nothing was running", () => {
     const closed: ClosedEntry[] = [
       { app: "m:editor", outcome: "not_running" },

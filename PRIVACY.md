@@ -36,8 +36,9 @@ This is the technical privacy statement for the Muster desktop app and website. 
 - **Closing a group looks at running programs** under your account: each one's program path,
   arguments, parent and owner, read only when you press Close and only to find the group's
   apps. Muster asks those apps to quit, offers to force quit any still open after a few
-  seconds, and keeps nothing from the list afterwards. It never reads a program's environment
-  or memory use.
+  seconds, and keeps nothing from the list afterwards. It never keeps or uses a program's
+  environment variables (on macOS the system hands them over together with the arguments) or
+  looks at its memory use.
 - **No log files.** When something fails, Muster prints a short message to its standard error
   output, which is only visible if you started it from a terminal. The message never includes
   launch targets, arguments or file paths.

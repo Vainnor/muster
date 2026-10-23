@@ -84,8 +84,10 @@ new capability, command, CSP source, plugin, file location or import format.
 
 So injected script could start detected apps without overrides, and approved entries, could
 add entries and groups, could turn start on login on or off without a dialog (which makes
-only Muster itself start at login), and could close a group: every app it can put in a group
-gets the same request to quit as its own Quit command, which leaves a save prompt up. Anything else it asks to run puts a native dialog in front of
+only Muster itself start at login), and could close a group of detected apps and approved entries. On macOS
+and Windows that request is the app's own Quit or window close, which leaves a save prompt
+up; on Linux it is `SIGTERM`, which many apps handle by exiting without asking, so unsaved
+work in a detected app can be lost. Anything else it asks to run puts a native dialog in front of
 the user listing the exact command line; it cannot answer that dialog. It cannot read files or
 reach the network.
 
@@ -127,22 +129,33 @@ reach the network.
 **Closing something the user did not mean to close.** `close_group` (main window only, not
 the popup) quits every running copy of each app in the group that belongs to the user, as
 the user chose; `muster_core::close::plan_close` decides what matches.
-- Only the user's own processes, never Muster itself, and never one whose program cannot be
-  read (another user's, or one that exited).
-- An entry with arguments matches only that exact command line. A shell or interpreter with
-  no arguments (`bash`, `cmd`, `python`, `env` and others) matches nothing, since it would
-  close every terminal. A script matches its interpreter only when the script is the first
+- Closing is gated like running: a manual entry, or one with overrides, closes only once its
+  exact target is in `config.approved`. Without that, a page could add `/usr/bin/gnome-shell`
+  or `explorer.exe` as an app, put it in a group and close the desktop session.
+- Only the user's own processes, never Muster's own process, and never one whose program
+  cannot be read (another user's, or one that exited). An `AppImage` target matches nothing:
+  its matching process serves the app's files, and quitting that crashes the app (and would
+  crash Muster's own `AppImage`).
+- An entry with arguments matches only that exact command line. A shell, interpreter or
+  shared launcher with no arguments (`bash`, `cmd`, `python`, `node`, `env`, `snap`,
+  `flatpak`, `wine`, `explorer`, `rundll32` and others, checked on the target as written and
+  resolved) matches nothing, since it would close every terminal or the desktop. A script matches its interpreter only when the script is the first
   argument. A bundle matches its `Contents/MacOS` executable, not helpers inside it. A match
   whose parent also matches is left to close with its parent.
 - The request to quit is the polite one on each OS: `NSRunningApplication::terminate` for a
   macOS app (`SIGTERM` for a process with no app), `taskkill /PID` without `/F` on Windows,
   `SIGTERM` on Linux. `taskkill` runs from `%SystemRoot%\System32` by absolute path with an
   argument array, and never from `PATH`.
+- Targets match as written and with symlinks resolved, and Windows' `\\?\` prefix removed. On
+  macOS the reported program is the path the process was started with, resolved by Muster;
+  a process can change what it reports, which only lets it avoid being closed or ask to be.
 - Force quitting (`SIGKILL`, `taskkill /F`) happens only after "Force quit" in a native dialog
   from Rust, which names the apps; "Leave running" is the first and default button, as in the
-  approval dialog. Right before killing, Muster lists and matches again, so a process that
-  exited and a pid the OS has since reused are left alone. A pid reused in the moment between
-  that listing and the signal is an accepted risk.
+  approval dialog, and after it the dialog does not come back for 5 seconds. Right before
+  killing, Muster lists again and kills only pids it asked to quit that still run the same
+  program with the same arguments, so a pid the OS has reused, or an entry the webview changed
+  while the dialog was open, is spared. A pid reused in the moment between that listing and
+  the signal is an accepted risk.
 - One close runs at a time. The process list (arguments included) stays in memory for that
   close only and is never logged or sent to the webview, which gets back one outcome per entry.
 

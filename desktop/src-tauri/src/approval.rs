@@ -167,13 +167,18 @@ pub(crate) fn force_quit_text(names: &[String]) -> String {
 }
 
 /// Asks whether to force quit the apps in `names`. "Leave running" is the first button, so it
-/// is the default, and only "Force quit" answers yes. With another Muster dialog open, the
-/// answer is no.
+/// is the default, and only "Force quit" answers yes. With another Muster dialog open, or
+/// within the cooldown after the user said no to any of them, the answer is no without asking,
+/// so script cannot keep the question up until a stray key press answers it.
 pub(crate) async fn confirm_force_quit<R: Runtime>(
     app: &AppHandle<R>,
     names: Vec<String>,
 ) -> Result<bool, CommandError> {
-    if ASKING.swap(true, Ordering::AcqRel) {
+    let cooling = DECLINED_AT
+        .lock()
+        .map_err(|_| CommandError::INTERNAL)?
+        .is_some_and(|at| at.elapsed() < COOL_DOWN);
+    if cooling || ASKING.swap(true, Ordering::AcqRel) {
         return Ok(false);
     }
     let _asking = Asking;
@@ -193,7 +198,11 @@ pub(crate) async fn confirm_force_quit<R: Runtime>(
     })
     .await
     .map_err(|_| CommandError::INTERNAL)?;
-    Ok(answer == MessageDialogResult::Custom(FORCE_QUIT.into()))
+    let force = answer == MessageDialogResult::Custom(FORCE_QUIT.into());
+    if !force {
+        *DECLINED_AT.lock().map_err(|_| CommandError::INTERNAL)? = Some(Instant::now());
+    }
+    Ok(force)
 }
 
 #[cfg(test)]

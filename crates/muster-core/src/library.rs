@@ -322,6 +322,7 @@ impl Library {
         Ok(crate::close::plan_close(
             group,
             &self.apps(),
+            &self.config.approved,
             processes,
             own_pid,
         )?)
