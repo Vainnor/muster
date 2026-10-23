@@ -82,11 +82,13 @@ pub fn entry_program(
     {
         return Program::new(image);
     }
-    let program = Program::new(exe)?;
-    if program.as_str().contains("/AppTranslocation/") {
+    if exe
+        .components()
+        .any(|c| c.as_os_str() == "AppTranslocation")
+    {
         return Err(LoginError::TemporaryLocation);
     }
-    Ok(program)
+    Program::new(exe)
 }
 
 /// macOS: a `LaunchAgent` plist for `~/Library/LaunchAgents/<label>.plist`. The plist writer
