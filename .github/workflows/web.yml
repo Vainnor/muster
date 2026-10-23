@@ -1,17 +1,22 @@
 name: Website image
 
+# Every push to main builds and pushes the website image; so does a version tag. Pull requests
+# that can reach the site only build it. Deploying is downstream: the cluster pulls a tag.
 on:
   push:
     branches: [main]
-    paths: [web/**, crates/**, themes/**, Cargo.toml, Cargo.lock, rust-toolchain.toml, .github/workflows/web.yml]
+    tags: ["v*"]
   pull_request:
     paths: [web/**, crates/**, themes/**, Cargo.toml, Cargo.lock, rust-toolchain.toml, .github/workflows/web.yml]
+  workflow_dispatch:
 
 permissions: {}
 
+# Pull requests cancel their superseded runs; main and tags never do, so every commit on main
+# gets its image.
 concurrency:
   group: web-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The build job runs third-party build code (cargo build scripts inside the Dockerfile), so it
 # gets a read-only token. Only the publish job, which runs no build code, can push the image.
@@ -22,10 +27,29 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      base: ${{ steps.ver.outputs.base }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Image version = the workspace version in Cargo.toml plus the short commit, for example
+      # "0.1.0-a1b2c3d". A version tag must name the same version as Cargo.toml.
+      - name: Compute version
+        id: ver
+        run: |
+          base="$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"$/\1/p' Cargo.toml)"
+          if ! printf '%s' "$base" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::could not read an X.Y.Z version from [workspace.package] in Cargo.toml (got '$base')"
+            exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = tag ] && [ "${GITHUB_REF_NAME#v}" != "$base" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $base"
+            exit 1
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "version=$base-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -36,10 +60,11 @@ jobs:
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.ver.outputs.version }}
           outputs: type=docker,dest=${{ runner.temp }}/muster-web.tar
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - if: github.event_name == 'push'
+      - if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: muster-web-image
@@ -50,7 +75,7 @@ jobs:
   publish:
     name: Push to ghcr.io
     needs: image
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -60,19 +85,27 @@ jobs:
         with:
           name: muster-web-image
           path: ${{ runner.temp }}
+      # main: <version>-<sha>, <sha>, main, latest. A v tag: <version>-<sha>, <sha>, X.Y.Z, X.Y.
       - env:
           GH_TOKEN: ${{ github.token }}
           ACTOR: ${{ github.actor }}
           IMAGE: ghcr.io/vainnor/muster-web
-          RUN: ${{ github.run_number }}
+          VERSION: ${{ needs.image.outputs.version }}
+          BASE: ${{ needs.image.outputs.base }}
         run: |
           short="${GITHUB_SHA::7}"
+          tags=("$VERSION" "$short")
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tags+=("$BASE" "${BASE%.*}")
+          else
+            tags+=(main latest)
+          fi
           docker load --input "$RUNNER_TEMP/muster-web.tar"
           printf '%s' "$GH_TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
-          for tag in main "sha-$short" "main-$RUN"; do
+          for tag in "${tags[@]}"; do
             docker tag muster-web:ci "$IMAGE:$tag"
             docker push --quiet "$IMAGE:$tag"
           done
-          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:main")"
-          echo "Pushed $digest (tags main, sha-$short, main-$RUN)" | tee -a "$GITHUB_STEP_SUMMARY"
+          digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$VERSION")"
+          echo "Pushed $digest as: ${tags[*]}" | tee -a "$GITHUB_STEP_SUMMARY"
           docker logout ghcr.io

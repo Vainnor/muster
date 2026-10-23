@@ -33,9 +33,10 @@ docker run --rm -p 127.0.0.1:8080:8080 --read-only --cap-drop ALL muster-web
 
 Multi-stage: the build stage compiles the release binary and bundles its assets; the final
 stage is distroless (`cc-debian12:nonroot`), runs as uid 65532 and has no shell. CI builds the
-image in `.github/workflows/web.yml` on every change to `web/`, and on `main` pushes it to
-`ghcr.io/vainnor/muster-web` as `main`, `sha-<7-char commit>` and `main-<run number>`
-(`docs/RELEASING.md`). Pin a deployment to a `sha-` tag or a digest; `main` moves.
+image in `.github/workflows/web.yml` and, on every push to `main`, pushes it to
+`ghcr.io/vainnor/muster-web` tagged `<version>-<short commit>` (for example `0.1.0-a1b2c3d`),
+plus `main` and `latest` (`docs/RELEASING.md`). Pin a deployment to a `<version>-<commit>` tag
+or a digest; `main` and `latest` move.
 
 ## Kubernetes
 

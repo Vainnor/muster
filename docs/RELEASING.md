@@ -61,8 +61,16 @@ Losing the private key means existing installs can no longer verify updates; bac
 
 ## Website
 
-`web.yml` builds the container image on every change that reaches the site. On `main` it also
-pushes the image to `ghcr.io/vainnor/muster-web` with three tags: `main`, `sha-<7-char commit>`
-and `main-<run number>`, which only ever increases, so an image-update controller can sort on
-it. The build job has a read-only token; only the publish job, which runs no build code, gets
-`packages: write`. Nothing deploys the image: the cluster pulls it (`web/README.md`).
+`web.yml` builds the website image on every push to `main` and on every version tag, and pushes
+it to `ghcr.io/vainnor/muster-web`. The image version is the workspace version in `Cargo.toml`
+plus the short commit, for example `0.1.0-a1b2c3d`.
+
+| Push | Tags |
+| --- | --- |
+| `main` | `0.1.0-a1b2c3d`, `a1b2c3d`, `main`, `latest` |
+| tag `v0.1.0` | `0.1.0-a1b2c3d`, `a1b2c3d`, `0.1.0`, `0.1` |
+
+A version tag that does not match `Cargo.toml` fails the build. Pull requests that touch the
+site build the image without pushing it. The build job has a read-only token; only the publish
+job, which runs no build code, gets `packages: write`. Nothing deploys the image: the cluster
+pulls a tag (`web/README.md`).

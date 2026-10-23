@@ -11,4 +11,4 @@ resources:
   - networkpolicy.yaml
 images:
   - name: ghcr.io/vainnor/muster-web
-    newTag: main # Moves on every push; pin a sha-<commit> tag or a digest in production.
+    newTag: main # Moves on every push; pin a <version>-<commit> tag or a digest in production.
