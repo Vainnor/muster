@@ -119,6 +119,14 @@ body {
   font-family: var(--mu-font-mono, monospace);
 }
 
+/* A checkbox with its label; the row is the hit target. */
+.check {
+  display: flex;
+  align-items: center;
+  gap: var(--mu-space-2);
+  min-height: 24px;
+}
+
 /* Navigation */
 .nav {
   display: flex;

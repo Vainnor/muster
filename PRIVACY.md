@@ -24,6 +24,11 @@ This is the technical privacy statement for the Muster desktop app and website. 
   The file holds the apps you added by hand, your groups, a copy of each detected app a group
   uses (name and launch command), the command lines you approved to run, and your settings. Nothing is uploaded. No passwords, tokens
   or keys are stored.
+- **Start on login, if you turn it on,** adds one entry where your OS looks for programs to
+  start: `~/Library/LaunchAgents/com.vainnor.muster.plist` on macOS,
+  `$XDG_CONFIG_HOME/autostart/com.vainnor.muster.desktop` (usually under `~/.config`) on Linux,
+  or a `Muster` value under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows.
+  It holds only the path to Muster. Turning the setting off removes it.
 - **App detection reads app metadata only**: names, icons and launch commands from the standard
   app locations (`.desktop` files on Linux, `.app` bundles' `Info.plist` on macOS, Start Menu
   shortcuts on Windows). It runs when you open or refresh the app list, never on a timer, and

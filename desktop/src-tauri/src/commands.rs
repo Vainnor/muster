@@ -44,6 +44,14 @@ impl CommandError {
         code: "no_global_hotkeys",
         message: "Global hotkeys do not work on Wayland. Bind `muster --popup` to a key in your compositor instead.",
     };
+    pub(crate) const LOGIN_ITEM: Self = Self {
+        code: "login_item",
+        message: "Muster could not change whether it starts when you log in.",
+    };
+    pub(crate) const RUNNING_FROM_DOWNLOAD: Self = Self {
+        code: "running_from_download",
+        message: "Move Muster to your Applications folder and open it from there, then turn this on.",
+    };
     pub(crate) const BUSY: Self = Self {
         code: "busy",
         message: "Answer the open Muster dialog first.",
@@ -223,6 +231,8 @@ pub(crate) struct Settings {
     popup_hotkey_active: bool,
     /// Wayland sessions cannot register global hotkeys at all.
     wayland: bool,
+    /// Whether the OS will start Muster at login; `None` when that could not be read.
+    start_on_login: Option<bool>,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -503,7 +513,10 @@ pub(crate) async fn run_group<R: Runtime>(
 }
 
 #[tauri::command]
-pub(crate) fn get_settings(state: State<'_, AppState>) -> Result<Settings, CommandError> {
+pub(crate) fn get_settings<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+) -> Result<Settings, CommandError> {
     let library = state.library()?;
     let settings = &library.config().settings;
     Ok(Settings {
@@ -511,7 +524,33 @@ pub(crate) fn get_settings(state: State<'_, AppState>) -> Result<Settings, Comma
         popup_hotkey: settings.popup_hotkey.as_ref().map(ToString::to_string),
         popup_hotkey_active: crate::hotkeys::popup_active(settings.popup_hotkey.as_ref()),
         wayland: crate::hotkeys::session_is_wayland(),
+        start_on_login: crate::autostart::is_enabled(&app)
+            .inspect_err(|e| crate::diag::report("reading start on login", e.as_ref()))
+            .ok(),
     })
+}
+
+/// Turns start on login on or off, and returns what the OS now says.
+#[tauri::command]
+pub(crate) fn set_start_on_login<R: Runtime>(
+    app: AppHandle<R>,
+    enabled: bool,
+) -> Result<bool, CommandError> {
+    let failed = |what: &str, e: &anyhow::Error| {
+        crate::diag::report(what, e.as_ref());
+        CommandError::LOGIN_ITEM
+    };
+    crate::autostart::set(&app, enabled).map_err(|e| {
+        if matches!(
+            e.downcast_ref::<muster_core::login::LoginError>(),
+            Some(muster_core::login::LoginError::TemporaryLocation)
+        ) {
+            CommandError::RUNNING_FROM_DOWNLOAD
+        } else {
+            failed("changing start on login", &e)
+        }
+    })?;
+    crate::autostart::is_enabled(&app).map_err(|e| failed("reading start on login", &e))
 }
 
 /// Sets the popup hotkey, or turns it off with `None`. The OS has to accept it before it is

@@ -11,7 +11,7 @@ pub(crate) async fn page() -> Result<impl View> {
         <p class="mt-3 text-muted-foreground">
             "Muster is in early development. Version 0.1.0 is an unsigned preview build: finding \
              apps, search, launching, groups, and theme import and export work. Closing groups, \
-             a hotkey per group, start on login, the theme editor and update checks are still to come."
+             a hotkey per group, the theme editor and update checks are still to come."
         </p>
         <div class="mt-8 grid gap-8">
             feature(

@@ -80,6 +80,8 @@ export interface Settings {
   popup_hotkey_active: boolean;
   /** Wayland sessions cannot register global hotkeys. */
   wayland: boolean;
+  /** Whether the OS will start Muster at login; null when that could not be read. */
+  start_on_login: boolean | null;
 }
 
 /** state::Notice */

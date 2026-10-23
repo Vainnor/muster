@@ -12,7 +12,7 @@ afterEach(() => {
 });
 
 function setup(initial: Partial<Settings> = {}, onOuterKeyDown?: () => void) {
-  let settings: Settings = { theme: "system", popup_hotkey: "Alt+Space", popup_hotkey_active: true, wayland: false, ...initial };
+  let settings: Settings = { theme: "system", popup_hotkey: "Alt+Space", popup_hotkey_active: true, wayland: false, start_on_login: false, ...initial };
   const saved: (string | null)[] = [];
   mockIPC((cmd, args) => {
     if (cmd === "get_settings") return settings;

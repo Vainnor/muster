@@ -35,7 +35,7 @@ new capability, command, CSP source, plugin, file location or import format.
 - The capability `capabilities/main.json` grants the window `main` only Muster's own commands,
   each by name (the list is `COMMANDS` in `build.rs`), plus `core:event:allow-listen` and
   `allow-unlisten` so the UI can receive `launch-failed` events from a group run. It cannot emit
-  events. No `core:default`, no shell, fs or opener plugin, no `remote.urls`. Autostart,
+  events. No `core:default`, no shell, fs or opener plugin, no `remote.urls`. Global
   shortcuts and the dialog plugin have no JS permission; the dialog plugin's own commands are
   registered but denied.
 - The popup launcher window (label `popup`, `capabilities/popup.json`) gets less: theme tokens,
@@ -51,6 +51,8 @@ new capability, command, CSP source, plugin, file location or import format.
   gets in the way, such as Ctrl+C, which the OS then routes to Muster everywhere; the user
   changes it back in Settings. That gives it nothing it lacks already: it can launch detected
   apps directly.
+- A launch with `--autostart` (the login entry) starts in the tray without opening the main
+  window; that flag changes nothing else.
 - A second launch with `--popup` opens the popup through single instance. Only that exact flag
   is read from the forwarded arguments; nothing else in them is used.
 - No command takes a file path to read or write. The webview can add an app with any valid
@@ -62,8 +64,9 @@ new capability, command, CSP source, plugin, file location or import format.
   `io::Error` text, which can carry paths.
 - The UI applies theme tokens only when the name matches `^--mu-[a-z0-9-]+$`.
 
-So injected script could start detected apps without overrides, and approved entries, and
-could add entries and groups. Anything else it asks to run puts a native dialog in front of
+So injected script could start detected apps without overrides, and approved entries, could
+add entries and groups, and could turn start on login on or off without a dialog (which makes
+only Muster itself start at login). Anything else it asks to run puts a native dialog in front of
 the user listing the exact command line; it cannot answer that dialog. It cannot read files or
 reach the network.
 
@@ -101,6 +104,25 @@ reach the network.
   open at a time.
 - Overrides on detected apps need approval too: arguments for a detected shell or PowerShell
   are a command line.
+
+**A login entry that starts the wrong program.** Start on login (`autostart.rs`, built by
+`muster_core::login`) writes one entry outside the app's own folders, only when the user turns
+it on in Settings: `~/Library/LaunchAgents/com.vainnor.muster.plist` on macOS,
+`$XDG_CONFIG_HOME/autostart/com.vainnor.muster.desktop` on Linux, and the `Muster` value under
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Run` on Windows. Turning it off removes it.
+- The entry starts Muster's own executable with the single argument `--autostart`, which only
+  keeps the main window closed. On Linux it starts the AppImage instead, but only when the
+  executable is inside that AppImage's mount (`APPDIR`), since `APPIMAGE` is inherited by
+  anything an AppImage starts. A program that is not an existing file (Linux's
+  `muster (deleted)` after an upgrade) or a macOS App Translocation copy is refused. The webview sends a
+  boolean (`set_start_on_login`); it cannot choose the program, the arguments or the path.
+- Each format is quoted by its own rules, and tests parse every entry back: the plist through
+  the plist reader, the `Exec` line through the detection tokenizer (`"`, `` ` ``, `$`, `\` and
+  `%` escaped), the Run value with the program in quotes so Windows does not try
+  `C:\Program.exe` first. A path that is relative, not Unicode, has a control character, or (on
+  Windows) contains `"` is refused rather than written.
+- No elevation: the macOS and Linux entries are per user, and the Windows value is under
+  `HKCU`.
 
 **Malicious import or tampered config.**
 - Themes arrive as text from a file the user picked in the webview's file input; the UI checks

@@ -13,6 +13,7 @@ pub mod hotkey;
 pub mod info;
 pub mod launch;
 pub mod library;
+pub mod login;
 pub mod model;
 pub mod store;
 pub mod themes;

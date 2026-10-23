@@ -43,6 +43,9 @@ pub(crate) async fn page() -> Result<impl View> {
                 <li>
                     "To find installed apps, Muster reads app names, icons and launch commands from the standard app folders. It does not read your documents, recent files or browser data."
                 </li>
+                <li>
+                    "If you turn on start on login, Muster adds one entry to your system's list of programs to start when you log in. It holds only where Muster is installed. Turning the setting off removes it."
+                </li>
                 <li>"Muster stores no passwords, tokens or keys."</li>
             </ul>
 

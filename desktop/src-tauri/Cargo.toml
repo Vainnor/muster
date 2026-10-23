@@ -18,6 +18,7 @@ path = "src/main.rs"
 name = "muster_desktop"
 path = "src/lib.rs"
 
+
 [features]
 # Opt-in auto-update support. Off by default; see docs/RELEASING.md § Updater.
 updater = ["dep:tauri-plugin-updater"]
@@ -30,12 +31,15 @@ serde.workspace = true
 serde_json.workspace = true
 tauri = { version = "2.12", features = ["tray-icon"] }
 tauri-plugin-single-instance = "2.5"
-tauri-plugin-autostart = "2.7"
 tauri-plugin-global-shortcut = "2.4"
 tauri-plugin-dialog = "=2.8.1"
 # No `zip` feature: it only handles legacy zipped Windows updates and pulls in zip 4.x
 # (RUSTSEC-2026-0367/0368/0369). Updates ship as plain .exe/.msi/AppImage (Tauri v2 format).
 tauri-plugin-updater = { version = "2.14", optional = true, default-features = false, features = ["rustls-tls", "system-proxy"] }
+
+[target.'cfg(windows)'.dependencies]
+# The start-on-login Run value (src/autostart.rs). Microsoft's safe wrapper over the registry.
+windows-registry = "0.6"
 
 [build-dependencies]
 tauri-build = { version = "2.7", features = [] }
