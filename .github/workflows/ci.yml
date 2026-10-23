@@ -51,9 +51,14 @@ jobs:
         timeout-minutes: 10
         run: |
           # The Azure mirror sometimes stalls mid-download with the connection open, which
-          # apt's own timeouts do not catch; cap each attempt and retry.
+          # apt's own timeouts do not catch; cap each attempt and retry. Retries go to Ubuntu's
+          # main archive, since a stalling Azure mirror tends to stall again. Packages already
+          # downloaded stay in apt's cache, so each attempt picks up where the last one stopped.
           apt() { sudo timeout 180 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 "$@"; }
           for attempt in 1 2 3; do
+            if [ "$attempt" != 1 ] && [ -f /etc/apt/apt-mirrors.txt ]; then
+              echo 'http://archive.ubuntu.com/ubuntu/' | sudo tee /etc/apt/apt-mirrors.txt >/dev/null
+            fi
             apt update && apt install -y --no-install-recommends \
               libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev && break
             [ "$attempt" = 3 ] && exit 1
