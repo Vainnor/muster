@@ -13,9 +13,8 @@ use tauri::plugin::TauriPlugin;
 use tauri::{AppHandle, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-/// The registered popup shortcut. The key handler reads it on the main thread, so it is only
-/// ever locked briefly and never while the plugin is called: registering blocks until the
-/// main thread runs it.
+/// The registered popup shortcut. It is only ever locked briefly and never while the plugin is
+/// called: registering blocks until the main thread runs it.
 static POPUP: Mutex<Option<Shortcut>> = Mutex::new(None);
 /// Makes changes to the popup shortcut happen one at a time.
 static CHANGING: Mutex<()> = Mutex::new(());
@@ -23,8 +22,15 @@ static CHANGING: Mutex<()> = Mutex::new(());
 pub(crate) fn plugin<R: Runtime>() -> TauriPlugin<R> {
     tauri_plugin_global_shortcut::Builder::new()
         .with_handler(|app, shortcut, event| {
+            // On X11 this runs on the plugin's own thread, which must not wait for the main
+            // thread: a hotkey change there waits for this thread, so building the window
+            // here could deadlock. Hand the toggle to the main thread instead.
             if event.state == ShortcutState::Pressed && current() == Some(*shortcut) {
-                crate::popup::toggle_or_log(app);
+                let handle = app.clone();
+                if let Err(e) = app.run_on_main_thread(move || crate::popup::toggle_or_log(&handle))
+                {
+                    crate::diag::report("opening the popup", &e);
+                }
             }
         })
         .build()
@@ -34,9 +40,11 @@ fn current() -> Option<Shortcut> {
     POPUP.lock().ok().and_then(|popup| *popup)
 }
 
-/// Whether the popup's hotkey is registered with the OS right now.
-pub(crate) fn popup_active() -> bool {
-    current().is_some()
+/// Whether `saved` is the hotkey registered with the OS right now. False when nothing is
+/// registered, or when a failed restore left a different one registered.
+pub(crate) fn popup_active(saved: Option<&Hotkey>) -> bool {
+    let saved = saved.and_then(|h| Shortcut::from_str(h.as_str()).ok());
+    saved.is_some() && current() == saved
 }
 
 /// Makes `hotkey` the popup's hotkey, or turns it off for `None`. If the OS refuses the new

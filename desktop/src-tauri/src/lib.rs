@@ -80,7 +80,7 @@ pub fn run() -> anyhow::Result<()> {
             if let Err(e) = hotkeys::set_popup(app.handle(), hotkey.as_ref()) {
                 diag::report("registering the popup hotkey", e.as_ref());
             }
-            if std::env::args().any(|a| a == popup::FLAG) {
+            if std::env::args_os().any(|a| a == popup::FLAG) {
                 popup::toggle(app.handle())?;
             } else {
                 window::show(app.handle())?;

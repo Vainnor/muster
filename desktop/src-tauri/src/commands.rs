@@ -509,7 +509,7 @@ pub(crate) fn get_settings(state: State<'_, AppState>) -> Result<Settings, Comma
     Ok(Settings {
         theme: settings.theme.clone(),
         popup_hotkey: settings.popup_hotkey.as_ref().map(ToString::to_string),
-        popup_hotkey_active: crate::hotkeys::popup_active(),
+        popup_hotkey_active: crate::hotkeys::popup_active(settings.popup_hotkey.as_ref()),
         wayland: crate::hotkeys::session_is_wayland(),
     })
 }
