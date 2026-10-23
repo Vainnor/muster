@@ -2,9 +2,10 @@
 //!
 //! The webview can ask to launch something but cannot approve it: the dialog is shown from
 //! Rust through the dialog plugin, which has no JS permission, and only the "Run" button
-//! records the approval (`Library::approve`). "Don't run" is the first button, which macOS
-//! (`NSAlert`) and Windows (task dialog) make the default, so a Return key press the user meant
-//! for Muster's window cannot approve anything.
+//! records the approval (`Library::approve`). "Don't run" is the first button, which is the
+//! default (Return) on macOS (rfd shows a `CFUserNotification` alert, with the first label as
+//! its default button) and Windows (task dialog, first custom button), so a Return key press
+//! the user meant for Muster's window cannot approve anything.
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};

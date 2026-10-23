@@ -9,8 +9,10 @@
 3. `.github/workflows/release.yml` builds on macOS (universal), Linux (x64) and Windows (x64)
    with `pnpm tauri build` and uploads the bundles as workflow artifacts. A publish job then
    downloads them, writes `SHA256SUMS.txt` and creates the draft release with all of them.
-4. Install from the draft on each OS you can reach, check the checksums, write the notes, and
-   publish. The website's download button points at `releases/latest`, so publishing is the
+4. Install from the draft on each OS you can reach and check the checksums. On each, add an
+   app by hand and launch it: the approval dialog must list its command line, and Return,
+   Escape and closing the dialog must all leave it not started; only "Run" starts it. Then
+   write the notes and publish. The website's download button points at `releases/latest`, so publishing is the
    switch.
 
 Only the publish job has `contents: write`, and it runs no build code; the build jobs and every
