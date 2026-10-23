@@ -73,6 +73,9 @@ impl From<muster_core::Error> for CommandError {
                 TargetError::TooManyArgs | TargetError::ArgTooLong | TargetError::NulByte => {
                     "The arguments are too long or contain invalid characters."
                 }
+                TargetError::BatchArgument => {
+                    "Arguments to a .bat or .cmd file cannot contain % ! & | < > ^ or quotes."
+                }
                 TargetError::BadUrl => "That is not a valid web or mail link.",
                 TargetError::SchemeNotAllowed(_) => {
                     "Only http, https and mailto links can be added."

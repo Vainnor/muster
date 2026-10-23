@@ -56,6 +56,8 @@ pub enum TargetError {
     TooManyArgs,
     #[error("an argument is longer than {MAX_ARG_LEN} bytes")]
     ArgTooLong,
+    #[error("an argument to a batch file contains a character cmd.exe treats specially")]
+    BatchArgument,
     #[error("URL is not valid")]
     BadUrl,
     #[error("URL scheme `{0}` is not allowed")]
@@ -96,6 +98,9 @@ pub fn validate(target: &LaunchTarget) -> Result<(), TargetError> {
             if args.iter().any(|a| a.contains('\0')) {
                 return Err(TargetError::NulByte);
             }
+            if is_batch_file(path) && args.iter().any(|a| a.contains(BATCH_SPECIAL)) {
+                return Err(TargetError::BatchArgument);
+            }
             if let Some(dir) = cwd {
                 check_path_shape(dir)?;
                 if !dir.is_dir() {
@@ -119,6 +124,18 @@ pub fn validate(target: &LaunchTarget) -> Result<(), TargetError> {
         }
         LaunchTarget::Url { url } => parse_url(url).map(|_| ()),
     }
+}
+
+/// Characters `cmd.exe` acts on even inside quotes (`%` and `!` expand variables) or that end a
+/// command (`&`, `|`, `<`, `>`, `^`, `"`, line breaks). Windows runs a `.bat` or `.cmd` file
+/// through `cmd.exe`, which parses its own command line; Rust escapes batch arguments, but an
+/// argument with none of these needs no escaping to mean what the approval dialog showed.
+const BATCH_SPECIAL: &[char] = &['%', '!', '&', '|', '<', '>', '^', '"', '\r', '\n'];
+
+/// A `.bat` or `.cmd` file, checked on every OS so the rule is tested everywhere.
+fn is_batch_file(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("bat") || e.eq_ignore_ascii_case("cmd"))
 }
 
 /// Re-validates `target` and turns it into a plan.
@@ -296,6 +313,49 @@ mod tests {
         let exe = dir.path().join("tool");
         std::fs::write(&exe, b"").unwrap();
         assert_eq!(validate(&program(exe)), Ok(()));
+    }
+
+    fn program_with_args(path: PathBuf, args: &[&str]) -> LaunchTarget {
+        LaunchTarget::Program {
+            path,
+            args: args.iter().map(|a| (*a).to_owned()).collect(),
+            cwd: None,
+        }
+    }
+
+    #[test]
+    fn accepts_plain_arguments_to_a_batch_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let script = dir.path().join("start.bat");
+        std::fs::write(&script, b"").unwrap();
+        let target = program_with_args(script, &["--port", "8080", "C:\\My Files\\a b.txt"]);
+        assert_eq!(validate(&target), Ok(()));
+    }
+
+    #[test]
+    fn rejects_cmd_special_characters_in_batch_arguments() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in ["start.bat", "START.CMD"] {
+            let script = dir.path().join(name);
+            std::fs::write(&script, b"").unwrap();
+            for arg in [
+                "a&calc", "%PATH%", "!x!", "a|b", "a>b", "a<b", "a^b", "\"x", "a\nb",
+            ] {
+                assert_eq!(
+                    validate(&program_with_args(script.clone(), &[arg])),
+                    Err(TargetError::BatchArgument),
+                    "{name} {arg:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn other_programs_may_take_cmd_special_characters() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("tool.exe");
+        std::fs::write(&exe, b"").unwrap();
+        assert_eq!(validate(&program_with_args(exe, &["a&b", "100%"])), Ok(()));
     }
 
     #[test]
