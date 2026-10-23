@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import { move, parseArgs, rank } from "../lib/search";
 import type { AppView, GroupDraft, GroupEntry, GroupView } from "../lib/types";
+import { GroupHotkey } from "./GroupHotkey";
 
 interface Props {
   apps: AppView[];
@@ -9,6 +10,9 @@ interface Props {
   onSave: (draft: GroupDraft) => Promise<boolean>;
   onDelete: (id: string) => void;
   onCancel: () => void;
+  /** Reload the group list after the hotkey changes. */
+  onHotkeyChanged: () => Promise<void>;
+  onError: (e: unknown) => void;
 }
 
 interface Row extends GroupEntry {
@@ -20,7 +24,7 @@ let nextKey = 0;
 const toRow = (e: GroupEntry): Row => ({ ...e, key: nextKey++, argsText: (e.args ?? []).join("\n") });
 
 /** Create or edit a group: name, apps in launch order, and per-entry delay and arguments. */
-export function GroupEditor({ apps, group, onSave, onDelete, onCancel }: Props) {
+export function GroupEditor({ apps, group, onSave, onDelete, onCancel, onHotkeyChanged, onError }: Props) {
   const [name, setName] = useState(group?.name ?? "");
   const [rows, setRows] = useState<Row[]>(() => (group?.entries ?? []).map(toRow));
   const [filter, setFilter] = useState("");
@@ -120,6 +124,15 @@ export function GroupEditor({ apps, group, onSave, onDelete, onCancel }: Props) 
             </li>
           ))}
         </ul>
+      </fieldset>
+
+      <fieldset className="fieldset">
+        <legend>Hotkey</legend>
+        {group ? (
+          <GroupHotkey group={group} onChanged={onHotkeyChanged} onError={onError} />
+        ) : (
+          <p className="muted">Save the group first, then give it a hotkey.</p>
+        )}
       </fieldset>
 
       <div className="actions">

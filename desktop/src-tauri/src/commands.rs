@@ -10,9 +10,10 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use muster_core::groups::GroupId;
+use muster_core::hotkey::Hotkey;
 use muster_core::info::AppInfo;
 use muster_core::launch::LaunchTarget;
-use muster_core::library::{GroupDraft, Library};
+use muster_core::library::{GroupDraft, HotkeyAction, Library};
 use muster_core::model::{AppEntry, AppId, Source};
 use serde::Serialize;
 use tauri::{AppHandle, Runtime, State};
@@ -145,6 +146,9 @@ impl From<muster_core::Error> for CommandError {
                     }
                 }
             }
+            muster_core::Error::HotkeyInUse => {
+                "The popup or another group already uses that hotkey. Pick another."
+            }
             muster_core::Error::InvalidHotkey(h) => {
                 use muster_core::hotkey::HotkeyError;
                 match h {
@@ -220,6 +224,10 @@ pub(crate) struct GroupView {
     name: String,
     entries: Vec<GroupEntryView>,
     needs_confirmation: bool,
+    /// The group's hotkey, or `None` when it has none.
+    hotkey: Option<String>,
+    /// Whether the OS accepted it. False with a hotkey means another app holds it.
+    hotkey_active: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -238,7 +246,7 @@ pub(crate) struct Settings {
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub(crate) struct StepFailure {
     app: String,
-    message: &'static str,
+    pub(crate) message: &'static str,
 }
 
 fn app_views(library: &Library) -> Vec<AppView> {
@@ -454,6 +462,11 @@ pub(crate) fn list_groups(state: State<'_, AppState>) -> Result<Vec<GroupView>, 
         .map(|g| GroupView {
             id: g.id.0.clone(),
             name: g.name.clone(),
+            hotkey: g.hotkey.as_ref().map(ToString::to_string),
+            hotkey_active: crate::hotkeys::is_active(
+                g.hotkey.as_ref(),
+                &HotkeyAction::RunGroup(g.id.clone()),
+            ),
             entries: g
                 .entries
                 .iter()
@@ -481,8 +494,18 @@ pub(crate) fn save_group(
 }
 
 #[tauri::command]
-pub(crate) fn delete_group(state: State<'_, AppState>, id: String) -> Result<(), CommandError> {
-    state.update(|lib| lib.delete_group(&GroupId(id)))
+pub(crate) fn delete_group<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), CommandError> {
+    state.update(|lib| lib.delete_group(&GroupId(id)))?;
+    // Releases the deleted group's hotkey. The group is gone either way.
+    let wanted = state.library()?.hotkeys();
+    if let Err(e) = crate::hotkeys::sync(&app, &wanted) {
+        crate::diag::report("releasing a deleted group's hotkey", e.as_ref());
+    }
+    Ok(())
 }
 
 /// Starts a group. Targets that need approval and lack it are listed in a native dialog first.
@@ -522,7 +545,10 @@ pub(crate) fn get_settings<R: Runtime>(
     Ok(Settings {
         theme: settings.theme.clone(),
         popup_hotkey: settings.popup_hotkey.as_ref().map(ToString::to_string),
-        popup_hotkey_active: crate::hotkeys::popup_active(settings.popup_hotkey.as_ref()),
+        popup_hotkey_active: crate::hotkeys::is_active(
+            settings.popup_hotkey.as_ref(),
+            &HotkeyAction::Popup,
+        ),
         wayland: crate::hotkeys::session_is_wayland(),
         start_on_login: crate::autostart::is_enabled(&app)
             .inspect_err(|e| crate::diag::report("reading start on login", e.as_ref()))
@@ -553,38 +579,76 @@ pub(crate) fn set_start_on_login<R: Runtime>(
     crate::autostart::is_enabled(&app).map_err(|e| failed("reading start on login", &e))
 }
 
-/// Sets the popup hotkey, or turns it off with `None`. The OS has to accept it before it is
-/// saved; if saving fails, the previous hotkey is registered again.
+/// Sets the popup hotkey, or turns it off with `None`. Returns the hotkey as saved.
 #[tauri::command]
 pub(crate) fn set_popup_hotkey<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, AppState>,
     hotkey: Option<String>,
 ) -> Result<Option<String>, CommandError> {
-    let hotkey = hotkey
-        .as_deref()
-        .map(muster_core::hotkey::Hotkey::parse)
+    let hotkey = parse_hotkey(hotkey.as_deref())?;
+    change_hotkeys(&app, &state, hotkey.as_ref(), |lib| {
+        lib.set_popup_hotkey(hotkey.clone())
+    })?;
+    Ok(hotkey.map(|h| h.to_string()))
+}
+
+/// Sets a group's hotkey, or removes it with `None`. Returns the hotkey as saved.
+#[tauri::command]
+pub(crate) fn set_group_hotkey<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    id: String,
+    hotkey: Option<String>,
+) -> Result<Option<String>, CommandError> {
+    let id = GroupId(id);
+    let hotkey = parse_hotkey(hotkey.as_deref())?;
+    change_hotkeys(&app, &state, hotkey.as_ref(), |lib| {
+        lib.set_group_hotkey(&id, hotkey.clone())
+    })?;
+    Ok(hotkey.map(|h| h.to_string()))
+}
+
+fn parse_hotkey(raw: Option<&str>) -> Result<Option<Hotkey>, CommandError> {
+    Ok(raw
+        .map(Hotkey::parse)
         .transpose()
-        .map_err(muster_core::Error::from)?;
-    if hotkey.is_some() && crate::hotkeys::session_is_wayland() {
+        .map_err(muster_core::Error::from)?)
+}
+
+/// Applies a hotkey change. The library checks it on a copy first (a hotkey belongs to one
+/// thing), then the OS has to accept `added` before it is saved. If the OS refuses it, or
+/// saving fails, the hotkeys from before are registered again.
+fn change_hotkeys<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+    added: Option<&Hotkey>,
+    change: impl Fn(&mut Library) -> muster_core::Result<()>,
+) -> Result<(), CommandError> {
+    if added.is_some() && crate::hotkeys::session_is_wayland() {
         return Err(CommandError::NO_GLOBAL_HOTKEYS);
     }
-    let old = state.library()?.config().settings.popup_hotkey.clone();
-    crate::hotkeys::set_popup(&app, hotkey.as_ref()).map_err(|e| {
-        crate::diag::report("registering the popup hotkey", e.as_ref());
-        CommandError::HOTKEY_TAKEN
-    })?;
-    let saved = hotkey.clone();
-    if let Err(e) = state.update(|lib| {
-        lib.config_mut().settings.popup_hotkey = saved;
-        Ok(())
-    }) {
-        if let Err(restore) = crate::hotkeys::set_popup(&app, old.as_ref()) {
-            crate::diag::report("restoring the popup hotkey", restore.as_ref());
+    let (before, after) = {
+        let library = state.library()?;
+        let mut next = library.clone();
+        change(&mut next)?;
+        (library.hotkeys(), next.hotkeys())
+    };
+    let restore = || {
+        if let Err(e) = crate::hotkeys::sync(app, &before) {
+            crate::diag::report("restoring the hotkeys", e.as_ref());
         }
-        return Err(e);
+    };
+    let refused = crate::hotkeys::sync(app, &after).map_err(|e| {
+        crate::diag::report("registering hotkeys", e.as_ref());
+        restore();
+        CommandError::INTERNAL
+    })?;
+    if added.is_some_and(|h| refused.contains(h)) {
+        restore();
+        return Err(CommandError::HOTKEY_TAKEN);
     }
-    Ok(hotkey.map(|h| h.to_string()))
+    state.update(&change).inspect_err(|_| restore())
 }
 
 /// `system`, a preset id or an imported theme's id.

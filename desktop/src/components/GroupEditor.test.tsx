@@ -15,7 +15,7 @@ afterEach(cleanup);
 describe("GroupEditor", () => {
   it("submits entries in order with parsed arguments and delays", () => {
     const onSave = vi.fn().mockResolvedValue(true);
-    render(<GroupEditor apps={apps} group={null} onSave={onSave} onDelete={vi.fn()} onCancel={vi.fn()} />);
+    render(<GroupEditor apps={apps} group={null} onSave={onSave} onDelete={vi.fn()} onCancel={vi.fn()} onHotkeyChanged={vi.fn()} onError={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Work" } });
     fireEvent.click(screen.getByText("+ Editor"));
     fireEvent.click(screen.getByText("+ Browser"));
@@ -36,7 +36,7 @@ describe("GroupEditor", () => {
 
   it("clamps delays to 60 seconds", () => {
     const onSave = vi.fn().mockResolvedValue(true);
-    render(<GroupEditor apps={apps} group={null} onSave={onSave} onDelete={vi.fn()} onCancel={vi.fn()} />);
+    render(<GroupEditor apps={apps} group={null} onSave={onSave} onDelete={vi.fn()} onCancel={vi.fn()} onHotkeyChanged={vi.fn()} onError={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "W" } });
     fireEvent.click(screen.getByText("+ Editor"));
     fireEvent.change(screen.getByLabelText(/Wait before/), { target: { value: "999" } });

@@ -75,6 +75,16 @@ pub(crate) fn texts(targets: &[LaunchTarget]) -> Option<Vec<String>> {
 }
 
 /// Returns once every target in `pending` is approved, asking the user if any are not.
+/// Shows a result the window cannot, such as a group started by a hotkey that failed. Does
+/// not wait for the user.
+pub(crate) fn tell<R: Runtime>(app: &AppHandle<R>, title: &str, text: String) {
+    app.dialog()
+        .message(text)
+        .title(title)
+        .kind(MessageDialogKind::Error)
+        .show(|_| {});
+}
+
 pub(crate) async fn ensure<R: Runtime>(
     app: &AppHandle<R>,
     state: &AppState,

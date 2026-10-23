@@ -44,17 +44,25 @@ new capability, command, CSP source, plugin, file location or import format.
   remove apps, edit groups, change settings or listen to events, and launches from it go
   through the same approval dialog. `close_window` and `popup_ready` act only on the window
   that calls them, and `popup_ready` refuses any window but the popup.
-- The popup hotkey is registered from Rust (`hotkeys.rs`); the webview has no global-shortcut
-  permission. `set_popup_hotkey` takes a string that `muster_core::hotkey::Hotkey` validates
+- Hotkeys (the popup's and each group's) are registered from Rust (`hotkeys.rs`); the webview
+  has no global-shortcut permission. `set_popup_hotkey` and `set_group_hotkey` take a string
+  that `muster_core::hotkey::Hotkey` validates
   (a fixed set of modifiers and keys, Ctrl, Alt or Super required except for F1 to F12, Escape
   kept for closing) before the OS sees it. A hostile page can still pick a valid hotkey that
   gets in the way, such as Ctrl+C, which the OS then routes to Muster everywhere; the user
   changes it back in Settings. That gives it nothing it lacks already: it can launch detected
-  apps directly.
+  apps directly. A hotkey belongs to one thing (the library refuses a second owner, and a
+  config file with a duplicate fails validation). A group's hotkey runs the group through the
+  same approval dialog as the window's Run button; with the window closed, a failure is shown
+  in a native dialog.
 - A launch with `--autostart` (the login entry) starts in the tray without opening the main
   window; that flag changes nothing else.
-- A second launch with `--popup` opens the popup through single instance. Only that exact flag
-  is read from the forwarded arguments; nothing else in them is used.
+- A second launch with `--popup` opens the popup through single instance, and
+  `--run-group <id>` runs a group, for compositors where Muster cannot register hotkeys. The id
+  must look like a group id (`g:`, at most 64 characters, no control characters) and name an
+  existing group, and the run needs the same approval as anywhere else. Anyone who can start
+  `muster` as the user can already run programs as the user. Nothing else in the forwarded
+  arguments is used.
 - No command takes a file path to read or write. The webview can add an app with any valid
   target and ask to launch an app or group by id. A manual app, or a group entry that is manual
   or overrides arguments or the folder, runs only after the user approves its exact target in

@@ -7,7 +7,7 @@ import { Launcher } from "./Launcher";
 
 const app = (id: string, name: string): AppView => ({ id, name, source: "detected", kind: "program", detail: "" });
 const apps = [app("d:mail", "Mail"), app("d:code", "Code"), app("d:notes", "Code Notes")];
-const groups: GroupView[] = [{ id: "g:work", name: "Work", entries: [], needs_confirmation: false }];
+const groups: GroupView[] = [{ id: "g:work", name: "Work", entries: [], needs_confirmation: false, hotkey: null, hotkey_active: false }];
 
 function setup() {
   const props = { onLaunchApp: vi.fn(), onRunGroup: vi.fn(), onEscapeEmpty: vi.fn() };

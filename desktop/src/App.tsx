@@ -4,6 +4,7 @@ import { AddApp } from "./components/AddApp";
 import { GroupEditor } from "./components/GroupEditor";
 import { Launcher } from "./components/Launcher";
 import { Settings } from "./components/Settings";
+import { MAC, displayHotkey } from "./lib/hotkey";
 import * as ipc from "./lib/ipc";
 import { useTheme } from "./lib/useTheme";
 import type { AppInfo, AppView, CssVar, GroupView, LaunchTarget, ThemeInfo } from "./lib/types";
@@ -185,7 +186,10 @@ export function App() {
             {groups.map((g) => (
               <li key={g.id} className="row">
                 <span className="row__name">{g.name}</span>
-                <span className="row__meta">{g.entries.map((e) => e.app_name ?? "Missing app").join(", ") || "Empty"}</span>
+                <span className="row__meta">
+                  {g.entries.map((e) => e.app_name ?? "Missing app").join(", ") || "Empty"}
+                  {g.hotkey && ` · ${displayHotkey(g.hotkey, MAC)}`}
+                </span>
                 <button type="button" className="button button--primary" onClick={() => void startGroup(g)}>
                   Run
                 </button>
@@ -204,7 +208,15 @@ export function App() {
       )}
 
       {view.name === "edit" && (
-        <GroupEditor apps={apps ?? []} group={view.group} onSave={saveGroup} onDelete={(id) => void removeGroup(id)} onCancel={() => setView({ name: "groups" })} />
+        <GroupEditor
+          apps={apps ?? []}
+          group={view.group}
+          onSave={saveGroup}
+          onDelete={(id) => void removeGroup(id)}
+          onCancel={() => setView({ name: "groups" })}
+          onHotkeyChanged={reloadGroups}
+          onError={fail}
+        />
       )}
 
       {view.name === "apps" && (
