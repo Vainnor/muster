@@ -9,6 +9,7 @@
 pub mod detect;
 pub mod error;
 pub mod groups;
+pub mod hotkey;
 pub mod info;
 pub mod launch;
 pub mod library;

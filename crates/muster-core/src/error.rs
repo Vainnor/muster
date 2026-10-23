@@ -13,6 +13,9 @@ pub enum Error {
     #[error("theme is invalid: {0}")]
     InvalidTheme(#[from] crate::themes::ThemeError),
 
+    #[error("hotkey is invalid: {0}")]
+    InvalidHotkey(#[from] crate::hotkey::HotkeyError),
+
     /// `path` is for callers that need it; the message leaves it out, since a path under the
     /// user's home must never reach a log (`PRIVACY.md`).
     #[error("config file could not be read or written")]
@@ -60,6 +63,7 @@ impl Error {
             Self::InvalidTarget(_) => "invalid_target",
             Self::InvalidGroup(_) => "invalid_group",
             Self::InvalidTheme(_) => "invalid_theme",
+            Self::InvalidHotkey(_) => "invalid_hotkey",
             Self::Io { .. } => "io",
             Self::InvalidConfig(_) => "invalid_config",
             Self::InvalidName => "invalid_name",

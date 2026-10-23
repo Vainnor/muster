@@ -46,6 +46,18 @@ pub struct Settings {
     /// The manual update check is always available; this enables checking at startup.
     pub check_updates_on_start: bool,
     pub local_logging: bool,
+    /// Opens the popup launcher from anywhere. `None` turns it off. Missing from configs
+    /// written before the popup existed, which get the default.
+    #[serde(default = "default_popup_hotkey")]
+    pub popup_hotkey: Option<crate::hotkey::Hotkey>,
+}
+
+#[allow(
+    clippy::unnecessary_wraps,
+    reason = "serde's default must return the field's type"
+)]
+fn default_popup_hotkey() -> Option<crate::hotkey::Hotkey> {
+    Some(crate::hotkey::Hotkey::default_popup())
 }
 
 impl Default for Settings {
@@ -54,6 +66,7 @@ impl Default for Settings {
             theme: "system".into(),
             check_updates_on_start: false,
             local_logging: true,
+            popup_hotkey: default_popup_hotkey(),
         }
     }
 }
@@ -301,6 +314,36 @@ mod tests {
             load(dir.path()).unwrap(),
             Loaded::Recovered { .. }
         ));
+    }
+
+    fn settings_json(extra: &str) -> Vec<u8> {
+        format!(
+            r#"{{"version":{CURRENT_VERSION},"settings":{{"theme":"system",
+            "check_updates_on_start":false,"local_logging":true{extra}}}}}"#
+        )
+        .into_bytes()
+    }
+
+    #[test]
+    fn a_config_from_before_the_popup_gets_the_default_hotkey() {
+        let config = parse(&settings_json("")).unwrap();
+        assert_eq!(
+            config.settings.popup_hotkey,
+            Some(crate::hotkey::Hotkey::default_popup())
+        );
+    }
+
+    #[test]
+    fn a_null_popup_hotkey_means_off() {
+        let config = parse(&settings_json(r#","popup_hotkey":null"#)).unwrap();
+        assert_eq!(config.settings.popup_hotkey, None);
+    }
+
+    #[test]
+    fn rejects_an_invalid_popup_hotkey() {
+        assert!(parse(&settings_json(r#","popup_hotkey":"Ctrl+Escape""#)).is_err());
+        let ok = parse(&settings_json(r#","popup_hotkey":"ctrl+k""#)).unwrap();
+        assert_eq!(ok.settings.popup_hotkey.unwrap().as_str(), "Ctrl+K");
     }
 
     fn with(edit: impl FnOnce(&mut serde_json::Value)) -> Vec<u8> {

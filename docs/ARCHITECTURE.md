@@ -7,7 +7,7 @@ website (Topcoat). All logic lives in `muster-core`; everything else is a thin l
 
 | Path | Crate | What it is |
 | --- | --- | --- |
-| `crates/muster-core` | `muster-core` | Model, launch validation and planning, groups, config store, theme parsing, app detection. No UI, Tauri, Topcoat or async runtime. |
+| `crates/muster-core` | `muster-core` | Model, launch validation and planning, groups, config store, theme parsing, app detection, the popup hotkey. No UI, Tauri, Topcoat or async runtime. |
 | `crates/muster-ui` | `muster-ui` | Turns a validated theme into `--mu-*` CSS custom properties. Shared by the desktop UI and the website. |
 | `desktop/src-tauri` | `muster-desktop` (bin `muster`) | Tauri shell: window, tray, single instance, autostart, global shortcuts, and the commands the UI may call. |
 | `desktop/src` | (npm) | React + TypeScript UI, built by Vite into `desktop/dist`, which Tauri embeds. |
