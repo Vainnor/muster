@@ -30,6 +30,10 @@
     "allow-set-popup-hotkey",
     "allow-set-group-hotkey",
     "allow-set-start-on-login",
+    "allow-check-for-update",
+    "allow-install-update",
+    "allow-open-release-page",
+    "allow-set-check-updates-on-start",
     "allow-startup-notice",
     "allow-close-window"
   ]

@@ -11,7 +11,7 @@ pub(crate) async fn page() -> Result<impl View> {
         <p class="mt-3 text-muted-foreground">
             "Muster is in early development. Version 0.1.0 is an unsigned preview build: finding \
              apps, search, launching, groups, and theme import and export work. The theme editor \
-             and update checks are still to come."
+             is still to come."
         </p>
         <div class="mt-8 grid gap-8">
             feature(
@@ -48,7 +48,7 @@ pub(crate) async fn page() -> Result<impl View> {
                     "Light, dark, or follow your system.",
                     "Presets: Nord, Gruvbox, Catppuccin, Solarized, High Contrast, Vainnor, Vainnor Ember and \
                      Prism.",
-                    "Edit a theme with a live preview, and import or export themes as files.",
+                    "Preview a theme live, and import or export themes as files.",
                     "Warns you when a theme's text would be hard to read.",
                 ]
             )
