@@ -34,9 +34,10 @@ pub struct Group {
     pub name: String,
     /// Launch order is the order of this list.
     pub entries: Vec<GroupEntry>,
-    /// Global shortcut, for example `CmdOrCtrl+Alt+1`. Registered by the shell.
+    /// Runs the group from anywhere. Validated like the popup hotkey, unique across the popup
+    /// and every group, and registered by the shell.
     #[serde(default)]
-    pub hotkey: Option<String>,
+    pub hotkey: Option<crate::hotkey::Hotkey>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

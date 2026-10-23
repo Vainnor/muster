@@ -57,6 +57,10 @@ export interface GroupView {
   name: string;
   entries: GroupEntryView[];
   needs_confirmation: boolean;
+  /** The group's hotkey, or null when it has none. */
+  hotkey: string | null;
+  /** False with a hotkey: the OS refused it, usually because another app holds it. */
+  hotkey_active: boolean;
 }
 
 /** muster_core::library::GroupDraft */

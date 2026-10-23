@@ -31,7 +31,7 @@ The checklist is `security.md` → "Webview and IPC". This file is how the shell
 - `RunEvent::ExitRequested` with no exit code is prevented so the tray stays; Quit from the
   tray exits with code 0.
 - Single instance: a second launch focuses (or recreates) the existing window and exits; with
-  `--popup` it toggles the popup instead.
+  `--popup` it toggles the popup instead, and with `--run-group <id>` it runs that group.
 - The popup is destroyed like the main window, never hidden.
 
 ## Per-OS gotchas

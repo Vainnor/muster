@@ -17,7 +17,8 @@ Working now:
   anywhere to start an app or group with the keyboard or mouse. On Wayland, bind
   `muster --popup` in your compositor instead.
 - Groups: launch several apps with one action, in order, with optional delays, per-app
-  arguments and working folder.
+  arguments and working folder. Give a group its own hotkey to run it from anywhere (on
+  Wayland, bind `muster --run-group <id>`).
 - Before it runs something you added by hand, or an app with arguments or a folder you set,
   Muster shows the exact command line in a system dialog and asks you first. It asks again if
   that command line changes.
@@ -32,7 +33,7 @@ Working now:
 
 Planned:
 
-- Close a whole group again; a global hotkey per group.
+- Close a whole group again.
 - A theme editor.
 - An update check that runs only when you press it.
 

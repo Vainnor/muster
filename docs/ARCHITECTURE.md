@@ -7,9 +7,9 @@ website (Topcoat). All logic lives in `muster-core`; everything else is a thin l
 
 | Path | Crate | What it is |
 | --- | --- | --- |
-| `crates/muster-core` | `muster-core` | Model, launch validation and planning, groups, config store, theme parsing, app detection, the popup hotkey, the start-on-login entries. No UI, Tauri, Topcoat or async runtime. |
+| `crates/muster-core` | `muster-core` | Model, launch validation and planning, groups, config store, theme parsing, app detection, hotkey validation and ownership, the start-on-login entries. No UI, Tauri, Topcoat or async runtime. |
 | `crates/muster-ui` | `muster-ui` | Turns a validated theme into `--mu-*` CSS custom properties. Shared by the desktop UI and the website. |
-| `desktop/src-tauri` | `muster-desktop` (bin `muster`) | Tauri shell: main window, popup launcher, tray, single instance, start on login, the popup hotkey, and the commands the UI may call. |
+| `desktop/src-tauri` | `muster-desktop` (bin `muster`) | Tauri shell: main window, popup launcher, tray, single instance, start on login, global hotkeys, and the commands the UI may call. |
 | `desktop/src` | (npm) | React + TypeScript UI, built by Vite into `desktop/dist`, which Tauri embeds. |
 | `web` | `muster-web` | The marketing site, server-rendered with Topcoat. |
 | `themes` | | Preset theme JSON files and `theme.schema.json`. `muster-core` embeds the presets at compile time. |
@@ -65,6 +65,12 @@ each time, so it holds no webview while closed. On Wayland the plugin cannot gra
 Muster registers nothing and the user binds `muster --popup` in their compositor. The goal is that an idle Muster in the tray
 holds no webview processes (`.claude/rules/performance.md`).
 
+A group can have its own hotkey too. `Library::hotkeys` lists every hotkey and what it does
+(open the popup, run a group), and `hotkeys::sync` makes the OS registrations match after each
+change and at startup. A hotkey change is tried on a copy of the library, then registered,
+then saved, and the previous set is registered again if either step fails. On Wayland the
+user binds `muster --run-group <id>` instead.
+
 ## Phase 0: why the desktop UI is React and not Topcoat
 
 The plan was Topcoat for both the site and the desktop UI. A spike ran Topcoat inside Tauri: an
@@ -107,7 +113,7 @@ the only source.
 | `tauri` 2 (`tray-icon`) | desktop | The shell. |
 | `tauri-plugin-single-instance` | desktop | A second launch focuses the running app instead of starting another. |
 | `windows-registry` | desktop (Windows) | Writes the start-on-login `Run` value. Microsoft's safe registry wrapper; `tauri-plugin-autostart` was dropped because it writes the program path unquoted on every OS. |
-| `tauri-plugin-global-shortcut` | desktop | The popup hotkey (and later per-group hotkeys), registered from Rust. |
+| `tauri-plugin-global-shortcut` | desktop | The popup and group hotkeys, registered from Rust. |
 | `tauri-plugin-dialog` (pinned `=2.8.1`) | desktop | The native approval dialog, shown from Rust so the webview cannot answer it. No JS permission. Brings `rfd` and, as a type dependency only, `tauri-plugin-fs`, which is never registered. |
 | `tauri-plugin-updater` | desktop, `updater` feature only | Signed update check, compiled out by default. Its default `zip` feature is off: it only handles legacy zipped Windows updates and pulls in zip 4.x with open advisories. |
 | `topcoat` `=0.10.0` | web | Server-rendered site; exact pin because the crate is pre-1.0 and the CLI must match. Features limited to router, view, serve, discover, asset, tailwind, ui. |

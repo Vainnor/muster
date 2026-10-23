@@ -40,6 +40,8 @@ export const getSettings = () => invoke<Settings>("get_settings");
 export const setTheme = (id: string) => invoke<void>("set_theme", { id });
 /** Returns whether the OS now starts Muster at login. */
 export const setStartOnLogin = (enabled: boolean) => invoke<boolean>("set_start_on_login", { enabled });
+/** Returns the hotkey as saved (canonical form), or null when removed. */
+export const setGroupHotkey = (id: string, hotkey: string | null) => invoke<string | null>("set_group_hotkey", { id, hotkey });
 /** Returns the hotkey as saved (canonical form), or null when turned off. */
 export const setPopupHotkey = (hotkey: string | null) => invoke<string | null>("set_popup_hotkey", { hotkey });
 export const startupNotice = () => invoke<Notice | null>("startup_notice");

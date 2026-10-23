@@ -61,6 +61,9 @@ export function comboFromKeyPress(e: KeyPress): string | null {
   return parts.join("+");
 }
 
+/** Whether to show macOS key names. */
+export const MAC = typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
+
 /** The canonical form with the names macOS prints on its keys. */
 export function displayHotkey(hotkey: string, mac: boolean): string {
   if (!mac) return hotkey;

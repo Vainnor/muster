@@ -151,6 +151,13 @@ impl Config {
         if self.groups.len() > MAX_GROUPS {
             return bad("too many groups");
         }
+        let mut hotkeys = std::collections::HashSet::new();
+        let groups = self.groups.iter().filter_map(|g| g.hotkey.as_ref());
+        for hotkey in self.settings.popup_hotkey.iter().chain(groups) {
+            if !hotkeys.insert(hotkey.as_str()) {
+                return bad("a hotkey is used twice");
+            }
+        }
         if self.approved.len() > MAX_APPROVED {
             return bad("too many approvals");
         }
@@ -360,12 +367,25 @@ mod tests {
     #[test]
     fn accepts_a_well_formed_file() {
         assert!(parse(&with(|_| {})).is_ok());
+        let config = parse(&with(|j| j["groups"][0]["hotkey"] = "ctrl+alt+1".into())).unwrap();
+        assert_eq!(
+            config.groups[0].hotkey.as_ref().unwrap().as_str(),
+            "Ctrl+Alt+1"
+        );
     }
 
     #[test]
     fn rejects_items_the_library_would_never_write() {
         type Edit = Box<dyn FnOnce(&mut serde_json::Value)>;
-        let cases: [(&str, Edit); 8] = [
+        let cases: [(&str, Edit); 10] = [
+            (
+                "group hotkey the popup already uses",
+                Box::new(|j| j["groups"][0]["hotkey"] = "alt+space".into()),
+            ),
+            (
+                "group hotkey Muster would not accept",
+                Box::new(|j| j["groups"][0]["hotkey"] = "Shift+A".into()),
+            ),
             (
                 "duplicate app id",
                 Box::new(|j| {

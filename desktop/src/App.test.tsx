@@ -28,6 +28,8 @@ const group: GroupView = {
   name: "Night",
   entries: [{ app: "m:backup", app_name: "Backup", args: null, cwd: null, delay_ms: 0 }],
   needs_confirmation: true,
+  hotkey: null,
+  hotkey_active: false,
 };
 
 function backend(runGroup: () => unknown) {
