@@ -1,4 +1,4 @@
-//! Plain-language privacy policy, drafted from PRIVACY.md. Keep the two in step
+//! Plain-language privacy policy, written from PRIVACY.md. Keep the two in step
 //! (`.claude/rules/docs.md`).
 
 use topcoat::{
@@ -19,10 +19,6 @@ pub(crate) async fn page() -> Result<impl View> {
                 "Last updated "
                 (LEGAL_UPDATED)
             </p>
-            <p class="rounded-md border border-border p-3 text-sm">
-                "Draft. This is a plain-language template, not legal advice, and has not been \
-                 reviewed by a lawyer."
-            </p>
 
             <h2 class="text-xl font-semibold pt-4">"The short version"</h2>
             <p>
@@ -35,7 +31,7 @@ pub(crate) async fn page() -> Result<impl View> {
                     "The app does not send usage data, crash reports or anything else to us or to anyone else."
                 </li>
                 <li>
-                    "It works without an internet connection. The only request it can make is to check GitHub for a newer version, and only when you ask it to, or after you switch that check on."
+                    "It works without an internet connection and makes no network requests at all. If a check for new versions is added later, it will run only when you ask, and this page will say so before it ships."
                 </li>
                 <li>
                     "Your apps, groups, themes, settings and the programs you approved to run are saved in a \

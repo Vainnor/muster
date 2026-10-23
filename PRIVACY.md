@@ -7,10 +7,9 @@ This is the technical privacy statement for the Muster desktop app and website. 
 
 - **No telemetry.** Muster collects no usage data, crash reports or analytics, and has no
   account system.
-- **No network access by default.** The app works fully offline. The only network request it can
-  make is an update check against GitHub Releases, and only when you press "Check for updates"
-  or turn on the check yourself. *(The update check is not built yet; see
-  [docs/RELEASING.md](docs/RELEASING.md).)*
+- **No network access.** The app works fully offline and makes no network requests. The update
+  check is compiled out of release builds (`docs/RELEASING.md`); if it ships, it will run only
+  when you press "Check for updates" or turn the check on, and this file will say so first.
 - **Local storage only.** Your apps, groups, settings and themes are stored in your OS's
   app-config folder:
   - Linux: `$XDG_CONFIG_HOME/com.vainnor.muster` (usually `~/.config/com.vainnor.muster`)
