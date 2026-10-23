@@ -182,27 +182,67 @@ pub(crate) async fn confirm_force_quit<R: Runtime>(
         return Ok(false);
     }
     let _asking = Asking;
+    let force = ask(
+        app,
+        "Force quit?",
+        force_quit_text(&names),
+        LEAVE_RUNNING,
+        FORCE_QUIT,
+    )
+    .await?;
+    if !force {
+        *DECLINED_AT.lock().map_err(|_| CommandError::INTERNAL)? = Some(Instant::now());
+    }
+    Ok(force)
+}
+
+#[cfg(feature = "updater")]
+/// Asks to install `version`, which restarts Muster. "Not now" is the first button and the
+/// default; only "Install" answers yes. With another Muster dialog open, the answer is no.
+pub(crate) async fn confirm_update<R: Runtime>(
+    app: &AppHandle<R>,
+    version: &str,
+) -> Result<bool, CommandError> {
+    if ASKING.swap(true, Ordering::AcqRel) {
+        return Ok(false);
+    }
+    let _asking = Asking;
+    let version: String = version
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(32)
+        .collect();
+    let text = format!("Install Muster {version}? Muster restarts when it is done.");
+    ask(app, "Install the update?", text, "Not now", "Install").await
+}
+
+/// A warning dialog whose first button, `no`, is the default; true only for `yes`. The caller
+/// holds [`ASKING`].
+async fn ask<R: Runtime>(
+    app: &AppHandle<R>,
+    title: &'static str,
+    text: String,
+    no: &'static str,
+    yes: &'static str,
+) -> Result<bool, CommandError> {
     let handle = app.clone();
+    // `blocking_show_with_result` must not run on the main thread.
     let answer = tauri::async_runtime::spawn_blocking(move || {
         handle
             .dialog()
-            .message(force_quit_text(&names))
-            .title("Force quit?")
+            .message(text)
+            .title(title)
             .kind(MessageDialogKind::Warning)
             .buttons(MessageDialogButtons::YesNoCancelCustom(
-                LEAVE_RUNNING.into(),
-                FORCE_QUIT.into(),
+                no.into(),
+                yes.into(),
                 CANCEL.into(),
             ))
             .blocking_show_with_result()
     })
     .await
     .map_err(|_| CommandError::INTERNAL)?;
-    let force = answer == MessageDialogResult::Custom(FORCE_QUIT.into());
-    if !force {
-        *DECLINED_AT.lock().map_err(|_| CommandError::INTERNAL)? = Some(Instant::now());
-    }
-    Ok(force)
+    Ok(answer == MessageDialogResult::Custom(yes.into()))
 }
 
 #[cfg(test)]

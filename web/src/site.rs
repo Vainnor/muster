@@ -9,4 +9,4 @@ pub(crate) const LICENSE_TEXT: &str = include_str!("../../LICENSE");
 pub(crate) const CONTACT_EMAIL: &str = "muster@vainnor.com";
 
 /// Date the legal drafts were last edited, shown on those pages.
-pub(crate) const LEGAL_UPDATED: &str = "2026-10-22";
+pub(crate) const LEGAL_UPDATED: &str = "2026-10-23";

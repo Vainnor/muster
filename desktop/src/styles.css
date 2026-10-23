@@ -431,3 +431,12 @@ textarea.field {
     transition-duration: 0ms !important;
   }
 }
+
+.update {
+  display: grid;
+  gap: var(--mu-space-2);
+}
+
+.update__notes {
+  white-space: pre-line;
+}

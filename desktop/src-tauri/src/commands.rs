@@ -79,6 +79,41 @@ impl CommandError {
     };
 }
 
+#[cfg(not(feature = "updater"))]
+impl CommandError {
+    pub(crate) const UPDATES_NOT_BUILT: Self = Self {
+        code: "updates_not_built",
+        message: "This copy of Muster was built without the update check.",
+    };
+}
+
+#[cfg_attr(
+    not(feature = "updater"),
+    allow(dead_code, reason = "only the updater build checks for updates")
+)]
+impl CommandError {
+    pub(crate) const UPDATE_BUSY: Self = Self {
+        code: "busy",
+        message: "Muster is already checking for or installing an update.",
+    };
+    pub(crate) const UPDATE_CHECK_FAILED: Self = Self {
+        code: "update_check_failed",
+        message: "Muster could not check for updates. Check your connection and try again.",
+    };
+    pub(crate) const NO_UPDATE_FOUND: Self = Self {
+        code: "no_update_found",
+        message: "Check for updates first.",
+    };
+    pub(crate) const INSTALL_ELSEWHERE: Self = Self {
+        code: "install_elsewhere",
+        message: "This copy of Muster cannot update itself. Download the new version from the release page.",
+    };
+    pub(crate) const UPDATE_INSTALL_FAILED: Self = Self {
+        code: "update_install_failed",
+        message: "The update could not be installed. Download it from the release page instead.",
+    };
+}
+
 impl From<muster_core::Error> for CommandError {
     fn from(e: muster_core::Error) -> Self {
         use muster_core::groups::GroupError;
@@ -245,6 +280,14 @@ pub(crate) struct Settings {
     wayland: bool,
     /// Whether the OS will start Muster at login; `None` when that could not be read.
     start_on_login: Option<bool>,
+    updates: UpdateSettings,
+}
+
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub(crate) struct UpdateSettings {
+    /// Whether this build has the update check at all.
+    built_in: bool,
+    check_on_start: bool,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -568,6 +611,45 @@ pub(crate) fn get_settings<R: Runtime>(
         start_on_login: crate::autostart::is_enabled(&app)
             .inspect_err(|e| crate::diag::report("reading start on login", e.as_ref()))
             .ok(),
+        updates: UpdateSettings {
+            built_in: crate::updates::BUILT_IN,
+            check_on_start: settings.check_updates_on_start,
+        },
+    })
+}
+
+/// Asks GitHub for the latest release (`updates.rs`). `None` when Muster is up to date.
+#[tauri::command]
+pub(crate) async fn check_for_update<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<Option<crate::updates::UpdateView>, CommandError> {
+    crate::updates::check(&app).await
+}
+
+/// Installs what the last check found, once the user agrees in a native dialog, and restarts.
+#[tauri::command]
+pub(crate) async fn install_update<R: Runtime>(app: AppHandle<R>) -> Result<(), CommandError> {
+    crate::updates::install(&app).await
+}
+
+/// Opens the release page in the browser. The address is fixed; the webview cannot choose it.
+#[tauri::command]
+pub(crate) fn open_release_page() -> Result<(), CommandError> {
+    let page = LaunchTarget::Url {
+        url: crate::updates::RELEASES.to_owned(),
+    };
+    let plan = muster_core::launch::plan(&page).map_err(muster_core::Error::from)?;
+    launcher::start(&plan)
+}
+
+#[tauri::command]
+pub(crate) fn set_check_updates_on_start(
+    state: State<'_, AppState>,
+    on: bool,
+) -> Result<(), CommandError> {
+    state.update(|lib| {
+        lib.config_mut().settings.check_updates_on_start = on;
+        Ok(())
     })
 }
 

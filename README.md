@@ -28,14 +28,15 @@ Working now:
 - Themes: light, dark or follow your system, presets (Nord, Gruvbox, Catppuccin, Solarized,
   High Contrast, Vainnor, Vainnor Ember, Prism), and theme files you import or export, with a
   live preview and a warning when text would be hard to read.
-- Private by default: no telemetry, no account, and no network access at all. See
-  [PRIVACY.md](PRIVACY.md).
+- Updates: check for a new version in Settings (or at startup, if you turn that on), and install
+  it from there when your install allows it without admin rights.
+- Private by default: no telemetry, no account, and no network access except the update check
+  you start. See [PRIVACY.md](PRIVACY.md).
 - Light on resources: no CPU use while idle; closing the window frees the web view.
 
 Planned:
 
 - A theme editor.
-- An update check that runs only when you press it.
 
 ## Install
 

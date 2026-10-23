@@ -13,6 +13,7 @@ mod popup;
 mod processes;
 mod state;
 mod tray;
+mod updates;
 mod window;
 
 use anyhow::Context as _;
@@ -80,6 +81,10 @@ pub fn run() -> anyhow::Result<()> {
             commands::set_popup_hotkey,
             commands::set_group_hotkey,
             commands::set_start_on_login,
+            commands::check_for_update,
+            commands::install_update,
+            commands::open_release_page,
+            commands::set_check_updates_on_start,
             commands::close_window,
             commands::popup_ready
         ])
@@ -90,10 +95,15 @@ pub fn run() -> anyhow::Result<()> {
                 .context("finding the app config directory")?;
             std::fs::create_dir_all(&dir).context("creating the app config directory")?;
             let state = state::AppState::load(dir);
-            let wanted = state
-                .library()
-                .map_err(|_| anyhow::anyhow!("reading settings"))?
-                .hotkeys();
+            let (wanted, check_updates) = {
+                let library = state
+                    .library()
+                    .map_err(|_| anyhow::anyhow!("reading settings"))?;
+                (
+                    library.hotkeys(),
+                    library.config().settings.check_updates_on_start,
+                )
+            };
             app.manage(state);
             tray::create(app.handle())?;
             // A hotkey another app holds must not stop Muster starting; Settings and the
@@ -101,6 +111,13 @@ pub fn run() -> anyhow::Result<()> {
             if let Err(e) = hotkeys::sync(app.handle(), &wanted) {
                 diag::report("registering hotkeys", e.as_ref());
             }
+            // The user turned this on; it is the only request Muster makes without a click.
+            #[cfg(feature = "updater")]
+            if check_updates {
+                updates::check_at_start(app.handle());
+            }
+            #[cfg(not(feature = "updater"))]
+            let _ = check_updates;
             // Started by the login entry, Muster stays in the tray until the user asks.
             let at_login = std::env::args_os().any(|a| a == autostart::FLAG);
             let args: Vec<String> = std::env::args_os()

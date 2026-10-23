@@ -95,6 +95,21 @@ export interface Settings {
   wayland: boolean;
   /** Whether the OS will start Muster at login; null when that could not be read. */
   start_on_login: boolean | null;
+  updates: UpdateSettings;
+}
+
+/** commands::UpdateSettings */
+export interface UpdateSettings {
+  /** False in builds without the update check. */
+  built_in: boolean;
+  check_on_start: boolean;
+}
+
+/** updates::UpdateView */
+export interface UpdateView {
+  version: string;
+  notes: string;
+  install: "in_app" | "package_manager" | "download";
 }
 
 /** state::Notice */

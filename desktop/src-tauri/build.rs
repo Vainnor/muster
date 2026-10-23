@@ -23,6 +23,10 @@ const COMMANDS: &[&str] = &[
     "set_popup_hotkey",
     "set_group_hotkey",
     "set_start_on_login",
+    "check_for_update",
+    "install_update",
+    "open_release_page",
+    "set_check_updates_on_start",
     "close_window",
     "popup_ready",
 ];

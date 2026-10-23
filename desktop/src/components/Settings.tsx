@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { MAX_THEME_BYTES, describeWarning } from "../lib/contrast";
 import { HotkeySetting } from "./HotkeySetting";
 import { StartupSetting } from "./StartupSetting";
+import { UpdateSetting } from "./UpdateSetting";
 import * as ipc from "../lib/ipc";
 import type { CssVar, ThemeInfo, ThemePreview } from "../lib/types";
 
@@ -179,6 +180,7 @@ export function Settings({ themes, theme, onTheme, onPreview, onThemesChanged, o
 
       <HotkeySetting onError={onError} />
       <StartupSetting onError={onError} />
+      <UpdateSetting onError={onError} />
 
       <div className="actions">
         <button type="button" className="button" onClick={onClose}>

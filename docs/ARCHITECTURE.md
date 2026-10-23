@@ -123,7 +123,7 @@ the only source.
 | `objc2`, `objc2-app-kit` | desktop (macOS) | `NSRunningApplication::terminate`, the same Quit an app gets from its menu, so it can ask about unsaved work; a signal skips that. Already in the tree through Tauri. |
 | `tauri-plugin-global-shortcut` | desktop | The popup and group hotkeys, registered from Rust. |
 | `tauri-plugin-dialog` (pinned `=2.8.1`) | desktop | The native approval dialog, shown from Rust so the webview cannot answer it. No JS permission. Brings `rfd` and, as a type dependency only, `tauri-plugin-fs`, which is never registered. |
-| `tauri-plugin-updater` | desktop, `updater` feature only | Signed update check, compiled out by default. Its default `zip` feature is off: it only handles legacy zipped Windows updates and pulls in zip 4.x with open advisories. |
+| `tauri-plugin-updater` | desktop, `updater` feature only (release builds turn it on) | Signed update check and install (`updates.rs`). Its default `zip` feature is off: it only handles legacy zipped Windows updates and pulls in zip 4.x with open advisories. |
 | `topcoat` `=0.10.0` | web | Server-rendered site; exact pin because the crate is pre-1.0 and the CLI must match. Features limited to router, view, serve, discover, asset, tailwind, ui. |
 | `tokio`, `http` | web | Topcoat's runtime and header types. |
 | React 19, Vite, TypeScript, vitest | desktop UI | See Phase 0. `@tauri-apps/api` is the only runtime package besides React. |

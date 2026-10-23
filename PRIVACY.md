@@ -7,9 +7,16 @@ This is the technical privacy statement for the Muster desktop app and website. 
 
 - **No telemetry.** Muster collects no usage data, crash reports or analytics, and has no
   account system.
-- **No network access.** The app works fully offline and makes no network requests. The update
-  check is compiled out of release builds (`docs/RELEASING.md`); if it ships, it will run only
-  when you press "Check for updates" or turn the check on, and this file will say so first.
+- **No network access unless you ask.** The app works fully offline. The one request it can
+  make is the update check, when you press "Check for updates" in Settings, or each time
+  Muster starts if you turned that on (it is off by default). It fetches
+  `https://github.com/Vainnor/muster/releases/latest/download/latest.json` from GitHub,
+  through your system's proxy if you set one, with no headers beyond
+  `User-Agent: tauri-plugin-updater/2.14.0` and `Accept: application/json`; GitHub sees your IP
+  address, as with any request, and its own privacy statement covers what it logs. If you
+  choose Install, Muster downloads the file that list names, also from GitHub, and checks its
+  signature before installing it. Builds made without the `updater` feature make no requests
+  at all.
 - **The window is the OS's own web view**: WebKit on macOS, WebView2 on Windows, WebKitGTK on
   Linux. On Windows, Muster starts WebView2 with Microsoft SmartScreen turned off, so the pages
   it shows are not sent to Microsoft for checking. Keeping the web view itself up to date is

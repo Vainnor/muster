@@ -2,7 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-import type { AppInfo, AppView, ClosedEntry, CommandError, CssVar, GroupDraft, GroupView, LaunchTarget, Notice, Settings, StepFailure, ThemeInfo, ThemePreview } from "./types";
+import type { AppInfo, AppView, ClosedEntry, CommandError, CssVar, GroupDraft, GroupView, LaunchTarget, Notice, Settings, StepFailure, ThemeInfo, ThemePreview, UpdateView } from "./types";
 
 export const appInfo = () => invoke<AppInfo>("app_info");
 export const listThemes = () => invoke<ThemeInfo[]>("list_themes");
@@ -26,6 +26,12 @@ export const runGroup = (id: string) => invoke<StepFailure[]>("run_group", { id 
 export const closeGroup = (id: string) => invoke<ClosedEntry[]>("close_group", { id });
 
 export const getSettings = () => invoke<Settings>("get_settings");
+/** Asks GitHub for the latest release; null when Muster is up to date. */
+export const checkForUpdate = () => invoke<UpdateView | null>("check_for_update");
+/** Rust asks the user in a native dialog first, then installs and restarts. */
+export const installUpdate = () => invoke<void>("install_update");
+export const openReleasePage = () => invoke<void>("open_release_page");
+export const setCheckUpdatesOnStart = (on: boolean) => invoke<void>("set_check_updates_on_start", { on });
 export const setTheme = (id: string) => invoke<void>("set_theme", { id });
 /** Returns whether the OS now starts Muster at login. */
 export const setStartOnLogin = (enabled: boolean) => invoke<boolean>("set_start_on_login", { enabled });

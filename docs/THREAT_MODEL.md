@@ -215,15 +215,34 @@ file, bundle or shortcut into a scanned folder, so detection treats them as untr
 - A detected app is validated by `launch::plan` each time it runs; a pinned copy in the config
   is not validated when it is pinned.
 
-**Network attacks.** The app makes no network request unless built with `--features updater`
-and the user starts a check. Updates are verified against a public key compiled into the app
-(`docs/RELEASING.md`). The website handles no input and serves a CSP of `default-src 'none'`
+**Network attacks and updates.** The app makes no network request unless built with
+`--features updater` (release builds are) and the user presses "Check for updates" or turned
+on the check at startup (`updates.rs`).
+- The manifest URL, the public key and `requireSignedVersion` are fixed in `tauri.conf.json`;
+  no command takes a URL. `install_update` installs only what the last check found, and only
+  after "Install" in a native dialog from Rust ("Not now" is the default). The webview can
+  start a check, which sends GitHub nothing about the user.
+- The downloaded file must carry a signature from the release key, and the signature must
+  name the version the manifest announced, so a tampered manifest (the manifest itself is not
+  signed) cannot pass off an older, validly signed release.
+- Muster never elevates to install. The updater would on some installs (`pkexec` or `sudo`
+  for `.deb` and `.rpm`, `msiexec` per-machine for the MSI, an administrator prompt for a
+  macOS app in a folder the user cannot write), so those are sent to the release page;
+  `latest.json` lists only the AppImage, the per-user NSIS installer and the macOS app.
+  Whether this copy can update itself comes from the bundle type the bundler patched into the
+  binary, and on macOS from creating a file in the app and its folder.
+- `open_release_page` opens one fixed URL through the OS opener.
+- The release key is in GitHub secrets only. The sign job that uses it runs the Tauri CLI
+  installed from the lockfile with `--ignore-scripts` on files the build jobs produced, so
+  build scripts never see it; it has a read-only token. Losing it means installed copies
+  cannot verify updates. The website handles no input and serves a CSP of `default-src 'none'`
 plus `nosniff`, `no-referrer`, COOP/CORP `same-origin`, HSTS and `frame-ancestors 'none'`.
 
 **Supply chain.** `Cargo.lock` and `pnpm-lock.yaml` are committed. CI runs `cargo deny`,
 `cargo audit` and `pnpm audit`. Actions are pinned by commit SHA with least-privilege
 `permissions:`, and container base images are pinned by digest. Release artifacts get a
-`SHA256SUMS.txt`. Jobs that run build code have read-only tokens; the jobs that write (the
+`SHA256SUMS.txt` and the updater files a minisign signature. Jobs that run build code have
+read-only tokens and no secrets; the jobs that write (the
 release draft, the website image push to ghcr.io) only download what a build job produced and
 upload it. The website deploy job holds the one stored secret, `HOMELAB_DEPLOY_TOKEN`, which can
 write only to `Vainnor/homelab-infra`; the job runs no checkout or build code and sends only the
