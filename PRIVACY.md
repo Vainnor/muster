@@ -33,6 +33,11 @@ This is the technical privacy statement for the Muster desktop app and website. 
 - The download button links to GitHub Releases; GitHub's own privacy policy applies there.
 - The hosting reverse proxy may keep standard access logs (IP address, time, requested page)
   for operating the server. They are not used for tracking or shared.
+- The site is served through Cloudflare, which sees every request, including your IP address,
+  under [Cloudflare's privacy policy](https://www.cloudflare.com/privacypolicy/). Cloudflare
+  adds Network Error Logging headers (`NEL`, `Report-To`) to each response. They do not change
+  the page, but a browser that supports them may send Cloudflare a short report when a request
+  to the site fails, such as the page address and the kind of error.
 
 ## Changes
 

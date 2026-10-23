@@ -10,8 +10,11 @@ does not ship until both are changed and the user has agreed.
   in settings. It sends nothing but the request itself.
 - **No third-party requests.** No CDN fonts, scripts, images or icons; no remote theme gallery;
   the site does not call the GitHub API from the visitor's browser. Assets ship in the bundle.
-- **No accounts, no cookies on the site**, no fingerprinting, no IP logging beyond what the
-  homelab ingress does by default (documented on the privacy page).
+  The one exception is the edge: Cloudflare fronts the site and adds `NEL`/`Report-To`, so
+  browsers may send it network-error reports. That is documented on the privacy page; add no
+  other.
+- **No accounts, no cookies on the site**, no fingerprinting, no IP logging beyond what
+  Cloudflare and the homelab ingress do by default (documented on the privacy page).
 - **Logs stay local** and the user can turn them off. Never log launch targets, arguments,
   group names, file paths under the user's home, or environment variables at `info` or above.
   `debug` may log ids; never full paths.

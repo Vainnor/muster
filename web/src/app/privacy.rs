@@ -57,6 +57,16 @@ pub(crate) async fn page() -> Result<impl View> {
                     "The server that hosts it may keep standard access logs (IP address, time, page requested, browser name) to keep it running and secure. These logs are not used to track you and are not shared."
                 </li>
                 <li>
+                    "The site is delivered through Cloudflare, which sees each request, including your IP address, under "
+                    <a
+                        class="underline"
+                        href="https://www.cloudflare.com/privacypolicy/"
+                    >
+                        "Cloudflare's privacy policy"
+                    </a>
+                    ". Cloudflare also asks browsers to report network errors: if loading a page fails, some browsers send Cloudflare a short note saying which page and what went wrong. This does not change the page."
+                </li>
+                <li>
                     "The download button sends you to GitHub, where "
                     <a
                         class="underline"
