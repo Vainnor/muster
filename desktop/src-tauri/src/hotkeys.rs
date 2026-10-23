@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::str::FromStr;
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use anyhow::Context as _;
 use muster_core::groups::GroupId;
@@ -24,11 +25,16 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 static REGISTERED: Mutex<Option<HashMap<Shortcut, HotkeyAction>>> = Mutex::new(None);
 /// Makes changes happen one at a time.
 static CHANGING: Mutex<()> = Mutex::new(());
+/// When each shortcut last reported a press. X11 autorepeat sends a new press every few dozen
+/// milliseconds while a key is held, which would start a group's apps again and again.
+static LAST_PRESS: Mutex<Option<HashMap<Shortcut, Instant>>> = Mutex::new(None);
+/// A press this soon after the previous one is a repeat, not a new press.
+const REPEAT: Duration = Duration::from_millis(500);
 
 pub(crate) fn plugin<R: Runtime>() -> TauriPlugin<R> {
     tauri_plugin_global_shortcut::Builder::new()
         .with_handler(|app, shortcut, event| {
-            if event.state != ShortcutState::Pressed {
+            if event.state != ShortcutState::Pressed || is_repeat(shortcut, Instant::now()) {
                 return;
             }
             let Some(action) = action_for(shortcut) else {
@@ -45,6 +51,16 @@ pub(crate) fn plugin<R: Runtime>() -> TauriPlugin<R> {
         .build()
 }
 
+/// Records this press and says whether it came too soon after the previous one. Every press
+/// moves the mark, so a held key stays a repeat for as long as it is held.
+fn is_repeat(shortcut: &Shortcut, now: Instant) -> bool {
+    let Ok(mut last) = LAST_PRESS.lock() else {
+        return false;
+    };
+    let previous = last.get_or_insert_with(HashMap::new).insert(*shortcut, now);
+    previous.is_some_and(|at| now.saturating_duration_since(at) < REPEAT)
+}
+
 fn action_for(shortcut: &Shortcut) -> Option<HotkeyAction> {
     let registered = REGISTERED.lock().ok()?;
     registered.as_ref()?.get(shortcut).cloned()
@@ -58,12 +74,15 @@ pub(crate) fn perform<R: Runtime>(app: &AppHandle<R>, action: HotkeyAction) {
     }
 }
 
-/// Runs a group the way the window does, approval dialog included. With no window to show
-/// the result, a failure is reported in a native dialog.
+/// Runs a group the way the window does, approval dialog included. There may be no window to
+/// show the result, so a failure is reported in a native dialog.
 fn run_group<R: Runtime>(app: &AppHandle<R>, id: GroupId) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let state = app.state::<crate::state::AppState>();
+        // A second launch can arrive before setup has loaded the library.
+        let Some(state) = app.try_state::<crate::state::AppState>() else {
+            return;
+        };
         let problem = match crate::commands::run_group(app.clone(), state, id.0).await {
             Ok(failures) if failures.is_empty() => None,
             Ok(failures) => Some(
@@ -73,8 +92,14 @@ fn run_group<R: Runtime>(app: &AppHandle<R>, id: GroupId) {
                     .collect::<Vec<_>>()
                     .join("\n"),
             ),
-            // Declining the approval dialog is the user's answer, not a failure.
-            Err(e) if e.code == crate::commands::CommandError::CANCELLED.code => None,
+            // Declining the approval dialog is the user's answer, not a failure. A press while
+            // a dialog is open or just after a decline only needs ignoring.
+            Err(e)
+                if e.code == crate::commands::CommandError::CANCELLED.code
+                    || e.code == crate::commands::CommandError::BUSY.code =>
+            {
+                None
+            }
             Err(e) => Some(e.message.to_owned()),
         };
         if let Some(text) = problem {
@@ -169,4 +194,34 @@ pub(crate) fn session_is_wayland() -> bool {
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn session_is_wayland() -> bool {
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_held_key_is_one_press() {
+        let shortcut = Shortcut::from_str("Ctrl+Alt+F9").unwrap();
+        let start = Instant::now();
+        assert!(!is_repeat(&shortcut, start));
+        // Autorepeat: a press every 40 ms for two seconds.
+        for n in 1..50 {
+            assert!(is_repeat(&shortcut, start + Duration::from_millis(40 * n)));
+        }
+        // Released, then pressed again a moment later.
+        assert!(!is_repeat(
+            &shortcut,
+            start + Duration::from_millis(40 * 49 + 600)
+        ));
+    }
+
+    #[test]
+    fn other_shortcuts_are_not_repeats() {
+        let a = Shortcut::from_str("Ctrl+Alt+F10").unwrap();
+        let b = Shortcut::from_str("Ctrl+Alt+F11").unwrap();
+        let now = Instant::now();
+        assert!(!is_repeat(&a, now));
+        assert!(!is_repeat(&b, now));
+    }
 }

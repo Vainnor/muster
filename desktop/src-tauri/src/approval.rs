@@ -75,14 +75,21 @@ pub(crate) fn texts(targets: &[LaunchTarget]) -> Option<Vec<String>> {
 }
 
 /// Returns once every target in `pending` is approved, asking the user if any are not.
+/// Whether a [`tell`] dialog is open; only one is shown at a time.
+static TELLING: AtomicBool = AtomicBool::new(false);
+
 /// Shows a result the window cannot, such as a group started by a hotkey that failed. Does
-/// not wait for the user.
+/// not wait for the user, and drops the message if one is already showing, so repeated
+/// presses cannot stack dialogs.
 pub(crate) fn tell<R: Runtime>(app: &AppHandle<R>, title: &str, text: String) {
+    if TELLING.swap(true, Ordering::AcqRel) {
+        return;
+    }
     app.dialog()
         .message(text)
         .title(title)
         .kind(MessageDialogKind::Error)
-        .show(|_| {});
+        .show(|_| TELLING.store(false, Ordering::Release));
 }
 
 pub(crate) async fn ensure<R: Runtime>(

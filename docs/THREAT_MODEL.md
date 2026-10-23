@@ -53,15 +53,25 @@ new capability, command, CSP source, plugin, file location or import format.
   changes it back in Settings. That gives it nothing it lacks already: it can launch detected
   apps directly. A hotkey belongs to one thing (the library refuses a second owner, and a
   config file with a duplicate fails validation). A group's hotkey runs the group through the
-  same approval dialog as the window's Run button; with the window closed, a failure is shown
-  in a native dialog.
+  same approval dialog as the window's Run button. A failure to start is shown in a native
+  dialog, one at a time, and not for a press while a dialog is open or just after a decline;
+  a failure after an entry's delay goes to the window only, so with the window closed it is
+  not shown. A key held down counts as one press (X11 autorepeat would otherwise start the
+  group over and over).
+- A group hotkey can bring up the approval dialog while the user is typing in another app.
+  A page could pick a key the user presses often for a group with a manual entry. Return and
+  Space go to the dialog's default button, which is "Don't run" on macOS and Windows; the GTK
+  default is unverified, so Linux is the exposed case. The 5-second cooldown after a decline
+  limits retries. This needs the same manual check on each release as the GTK default below.
 - A launch with `--autostart` (the login entry) starts in the tray without opening the main
   window; that flag changes nothing else.
 - A second launch with `--popup` opens the popup through single instance, and
   `--run-group <id>` runs a group, for compositors where Muster cannot register hotkeys. The id
   must look like a group id (`g:`, at most 64 characters, no control characters) and name an
   existing group, and the run needs the same approval as anywhere else. Anyone who can start
-  `muster` as the user can already run programs as the user. Nothing else in the forwarded
+  `muster` as the user can usually already run programs as the user; a sandboxed app that may
+  only start other programs could use it to run groups that need no approval, which is
+  accepted. There is no URL scheme, so a web page cannot. Nothing else in the forwarded
   arguments is used.
 - No command takes a file path to read or write. The webview can add an app with any valid
   target and ask to launch an app or group by id. A manual app, or a group entry that is manual

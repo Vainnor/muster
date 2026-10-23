@@ -43,7 +43,7 @@ impl CommandError {
     };
     pub(crate) const NO_GLOBAL_HOTKEYS: Self = Self {
         code: "no_global_hotkeys",
-        message: "Global hotkeys do not work on Wayland. Bind `muster --popup` to a key in your compositor instead.",
+        message: "Global hotkeys do not work on Wayland. Bind `muster --popup` or `muster --run-group <id>` to a key in your compositor instead.",
     };
     pub(crate) const LOGIN_ITEM: Self = Self {
         code: "login_item",
@@ -634,10 +634,14 @@ fn change_hotkeys<R: Runtime>(
         change(&mut next)?;
         (library.hotkeys(), next.hotkeys())
     };
-    let restore = || {
-        if let Err(e) = crate::hotkeys::sync(app, &before) {
-            crate::diag::report("restoring the hotkeys", e.as_ref());
-        }
+    let restore = || match crate::hotkeys::sync(app, &before) {
+        Err(e) => crate::diag::report("restoring the hotkeys", e.as_ref()),
+        // Another app took one meanwhile; Settings and the group list show which.
+        Ok(refused) if !refused.is_empty() => crate::diag::report(
+            "restoring the hotkeys",
+            anyhow::anyhow!("the OS refused a hotkey it held before").as_ref(),
+        ),
+        Ok(_) => {}
     };
     let refused = crate::hotkeys::sync(app, &after).map_err(|e| {
         crate::diag::report("registering hotkeys", e.as_ref());
