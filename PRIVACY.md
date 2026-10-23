@@ -10,6 +10,12 @@ This is the technical privacy statement for the Muster desktop app and website. 
 - **No network access.** The app works fully offline and makes no network requests. The update
   check is compiled out of release builds (`docs/RELEASING.md`); if it ships, it will run only
   when you press "Check for updates" or turn the check on, and this file will say so first.
+- **The window is the OS's own web view**: WebKit on macOS, WebView2 on Windows, WebKitGTK on
+  Linux. On Windows, Muster starts WebView2 with Microsoft SmartScreen turned off, so the pages
+  it shows are not sent to Microsoft for checking. Keeping the web view itself up to date is
+  the OS's job (on Windows, Microsoft Edge's updater), not Muster's. On macOS, watching Muster
+  and its WebKit helper processes for 30 seconds with the window open showed no network
+  connections.
 - **Local storage only.** Your apps, groups, settings and themes are stored in your OS's
   app-config folder:
   - Linux: `$XDG_CONFIG_HOME/com.vainnor.muster` (usually `~/.config/com.vainnor.muster`)
