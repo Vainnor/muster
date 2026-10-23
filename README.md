@@ -4,14 +4,15 @@ A small, fast desktop app launcher for Windows, macOS and Linux. Muster finds th
 machine and lets you launch them one at a time, or in **groups**: put your editor, terminal and
 browser in a "Work" group and start all of them with one click.
 
-> **Status: 1.0.** The installers are not code-signed; see below.
+> **Status: 1.1.** The installers are not code-signed; see below.
 
 ## Features
 
 Working now:
 
 - Finds installed apps automatically (`.desktop` entries on Linux, `.app` bundles on macOS,
-  Start Menu shortcuts on Windows); add any program, script or web link by hand.
+  Start Menu shortcuts on Windows); add any program, script or web link by hand, typing its
+  path or choosing it with Browse.
 - Search-first launcher: type to filter, arrow keys to move, Enter to start, Escape to close.
 - Popup launcher: a hotkey you choose (Alt+Space by default) opens a small search window from
   anywhere to start an app or group with the keyboard or mouse. On Wayland, bind

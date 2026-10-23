@@ -11,6 +11,7 @@ const COMMANDS: &[&str] = &[
     "refresh_apps",
     "launch_app",
     "add_app",
+    "pick_path",
     "remove_app",
     "list_groups",
     "save_group",

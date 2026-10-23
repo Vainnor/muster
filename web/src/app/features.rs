@@ -9,7 +9,7 @@ pub(crate) async fn page() -> Result<impl View> {
     Ok(view! {
         <h1 class="text-3xl font-bold">"Features"</h1>
         <p class="mt-3 text-muted-foreground">
-            "Version 1.0 finds your apps, searches and launches them, runs and closes groups, \
+            "Version 1.1 finds your apps, searches and launches them, runs and closes groups, \
              and imports and exports themes. A theme editor is planned."
         </p>
         <div class="mt-8 grid gap-8">
@@ -26,7 +26,7 @@ pub(crate) async fn page() -> Result<impl View> {
                 title: "Find and add apps",
                 items: &[
                     "Finds the apps installed on Windows, macOS and Linux.",
-                    "Add any program, script or web link by hand.",
+                    "Add any program, script or web link by hand: type its path or choose it with Browse.",
                     "Before it runs something you added yourself, or an app with arguments you set, Muster shows \
                      the exact command and asks you first.",
                 ]

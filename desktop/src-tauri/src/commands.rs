@@ -18,8 +18,9 @@ use muster_core::model::{AppEntry, AppId, Source};
 use serde::Serialize;
 use tauri::{AppHandle, Runtime, State};
 
+use crate::picker::{PickKind, Picked};
 use crate::state::{AppState, Notice};
-use crate::{approval, launcher};
+use crate::{approval, launcher, picker};
 
 /// Error sent to the webview: a stable code and a message safe to show. Never a path.
 #[derive(Debug, Serialize, PartialEq, Eq, Clone, Copy)]
@@ -68,6 +69,14 @@ impl CommandError {
     pub(crate) const INTERNAL: Self = Self {
         code: "internal",
         message: "Something went wrong inside Muster.",
+    };
+    pub(crate) const PICKER_COOLING_DOWN: Self = Self {
+        code: "busy",
+        message: "Wait a moment before browsing again.",
+    };
+    pub(crate) const PATH_NOT_UNICODE: Self = Self {
+        code: "path_not_unicode",
+        message: "Muster cannot use that path because its name has characters it cannot read.",
     };
     pub(crate) const READ_ONLY: Self = Self {
         code: "read_only",
@@ -492,6 +501,16 @@ pub(crate) fn add_app(
     state
         .update(|lib| lib.add_manual(&name, target))
         .map(|id| id.0)
+}
+
+/// Shows the native file picker for a program, an `.app` or a working folder, and returns
+/// what the user chose. Nothing is saved or run; `add_app` validates the path.
+#[tauri::command]
+pub(crate) async fn pick_path<R: Runtime>(
+    window: tauri::WebviewWindow<R>,
+    kind: PickKind,
+) -> Result<Option<Picked>, CommandError> {
+    picker::pick(window, kind).await
 }
 
 #[tauri::command]

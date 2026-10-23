@@ -209,6 +209,17 @@ textarea.field {
   box-shadow: var(--mu-focus-ring);
 }
 
+/* A field with a button beside it, such as Browse, kept out of the field's label. */
+.field-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--mu-space-2);
+}
+
+.field-row > .label {
+  flex: 1;
+}
+
 .label {
   display: flex;
   flex-direction: column;

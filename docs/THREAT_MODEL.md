@@ -78,6 +78,15 @@ new capability, command, CSP source, plugin, file location or import format.
   or overrides arguments or the folder, runs only after the user approves its exact target in
   a native dialog that Rust shows (`approval.rs`). The webview has no command that approves;
   `Library::approve` is called only after OK in that dialog.
+- `pick_path` (`picker.rs`) shows the native file or folder picker from Rust, for the Browse
+  buttons in "Add an app", and returns the path the user chose, or nothing on cancel. It
+  reads nothing at that path except whether it is an `.app` directory, saves nothing and runs
+  nothing; the path reaches the library only through `add_app`, which validates it like a
+  typed one. It shares the approval dialog's one-at-a-time slot, so it never opens over an
+  approval or another picker, and after a cancel it stays closed for 2 seconds, so script
+  cannot reopen it until a stray Return picks something. Script can open the picker but
+  cannot choose in it, and the path it gets back is one the user picked, which the CSP gives
+  it no way to send off the machine. The popup window is not granted it.
 - Commands treat arguments as hostile and return `CommandError { code, message }`, never raw
   `io::Error` text, which can carry paths.
 - The UI applies theme tokens only when the name matches `^--mu-[a-z0-9-]+$`.

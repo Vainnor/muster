@@ -267,7 +267,7 @@ export function App() {
         </section>
       )}
 
-      {view.name === "add" && <AddApp isMac={info?.os === "macos"} onAdd={addApp} onCancel={() => setView({ name: "apps" })} />}
+      {view.name === "add" && <AddApp isMac={info?.os === "macos"} onAdd={addApp} onError={fail} onCancel={() => setView({ name: "apps" })} />}
 
       {view.name === "settings" && (
         <Settings
