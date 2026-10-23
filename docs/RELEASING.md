@@ -12,8 +12,8 @@
 4. Install from the draft on each OS you can reach and check the checksums. On each, add an
    app by hand and launch it: the approval dialog must list its command line, and Return,
    Escape and closing the dialog must all leave it not started; only "Run" starts it. Then
-   write the notes and publish. The website's download button points at `releases/latest`, so publishing is the
-   switch.
+   write the notes and publish. The website's download button points at `releases/latest`,
+   so publishing is the switch.
 
 Only the publish job has `contents: write`, and it runs no build code; the build jobs and every
 other job in the repo are read-only.

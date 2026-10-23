@@ -144,9 +144,11 @@ pub struct InfoPlist {
 /// Stack for the parsing thread. Nesting is bounded by size: the ASCII plist format nests at
 /// 2 bytes per level, so a file within [`MAX_ENTRY_BYTES`] has at most 131,072 levels. The
 /// plist crate builds iteratively but drops recursively, also inside `from_reader` when a
-/// parse fails after a deep subtree closed, and one level costs on the order of 100 bytes of
-/// stack (more in debug builds). 64 MiB covers that with room to spare; the OS commits stack
-/// pages only as they are touched, and they go away when the thread ends.
+/// parse fails after a deep subtree closed. Measured on aarch64 macOS, the deepest such file
+/// needs about 6 MiB of stack in release and 30 MiB in debug, so 64 MiB leaves room on other
+/// targets. The OS commits stack pages only as they are touched, and they go away when the
+/// thread ends. An overflow would abort the process, which `join` cannot catch: the bound,
+/// not the `None` below, is what keeps a planted file from crashing Muster.
 const PARSE_STACK: usize = 64 * 1024 * 1024;
 
 /// Parses an XML or binary `Info.plist`. `None` if it is not a plist dictionary, is larger
