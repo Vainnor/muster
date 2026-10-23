@@ -23,7 +23,9 @@ pub(crate) fn toggle<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
         .always_on_top(true)
         .skip_taskbar(true)
         .center()
-        .focused(true)
+        // Hidden until the page calls `popup_ready`, so it never shows a half-drawn frame.
+        .visible(false)
+        .focused(false)
         .build()?;
     let handle = app.clone();
     window.on_window_event(move |event| {

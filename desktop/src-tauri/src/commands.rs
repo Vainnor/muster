@@ -574,6 +574,18 @@ pub(crate) fn close_window<R: Runtime>(
     window.destroy().map_err(|_| CommandError::INTERNAL)
 }
 
+/// Shows the popup once its page has painted with the theme and the list, so it appears in
+/// one frame instead of flashing through the blank and unthemed states. Only the popup is
+/// granted this, and it only ever shows the window that calls it.
+#[tauri::command]
+pub(crate) fn popup_ready<R: Runtime>(window: tauri::WebviewWindow<R>) -> Result<(), CommandError> {
+    if window.label() != crate::popup::POPUP {
+        return Err(CommandError::INTERNAL);
+    }
+    window.show().map_err(|_| CommandError::INTERNAL)?;
+    window.set_focus().map_err(|_| CommandError::INTERNAL)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

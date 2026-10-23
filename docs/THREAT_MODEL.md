@@ -39,9 +39,11 @@ new capability, command, CSP source, plugin, file location or import format.
   shortcuts and the dialog plugin have no JS permission; the dialog plugin's own commands are
   registered but denied.
 - The popup launcher window (label `popup`, `capabilities/popup.json`) gets less: theme tokens,
-  settings, listing apps and groups, `launch_app`, `run_group` and `close_window`. It cannot
-  add or remove apps, edit groups, change settings or listen to events, and launches from it go
-  through the same approval dialog. `close_window` destroys only the window that calls it.
+  settings, listing apps and groups, `launch_app`, `run_group`, `close_window` and
+  `popup_ready`, which shows the hidden popup once its page has painted. It cannot add or
+  remove apps, edit groups, change settings or listen to events, and launches from it go
+  through the same approval dialog. `close_window` and `popup_ready` act only on the window
+  that calls them, and `popup_ready` refuses any window but the popup.
 - The popup hotkey is registered from Rust (`hotkeys.rs`); the webview has no global-shortcut
   permission. `set_popup_hotkey` takes a string that `muster_core::hotkey::Hotkey` validates
   (a fixed set of modifiers and keys, Ctrl, Alt or Super required except for F1 to F12, Escape

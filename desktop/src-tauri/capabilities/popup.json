@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "popup",
-  "description": "The popup launcher opened by the global hotkey or `muster --popup`. It can list apps and groups, start them and close itself, and nothing else: no adding or removing apps, no editing groups, no settings changes, no events. Anything that needs approval still goes through the native dialog shown from Rust. No core:default, no plugin permissions.",
+  "description": "The popup launcher opened by the global hotkey or `muster --popup`. It can list apps and groups, start them, show itself once drawn and close itself, and nothing else: no adding or removing apps, no editing groups, no settings changes, no events. Anything that needs approval still goes through the native dialog shown from Rust. No core:default, no plugin permissions.",
   "windows": [
     "popup"
   ],
@@ -12,6 +12,7 @@
     "allow-list-groups",
     "allow-launch-app",
     "allow-run-group",
-    "allow-close-window"
+    "allow-close-window",
+    "allow-popup-ready"
   ]
 }

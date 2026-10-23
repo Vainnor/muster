@@ -6,9 +6,13 @@ import type { CssVar } from "./types";
 
 const darkQuery = window.matchMedia("(prefers-color-scheme: dark)");
 
-/** Applies the chosen theme (or a preview) to the page, following the OS light/dark setting. */
-export function useTheme(setting: string | null, preview: CssVar[] | null): void {
+/**
+ * Applies the chosen theme (or a preview) to the page, following the OS light/dark setting.
+ * Returns true once the first theme has been applied (or failed, leaving the fallback palette).
+ */
+export function useTheme(setting: string | null, preview: CssVar[] | null): boolean {
   const [prefersDark, setPrefersDark] = useState(darkQuery.matches);
+  const [applied, setApplied] = useState(false);
 
   // An OS event, not a timer: fires only when the user changes their system theme.
   useEffect(() => {
@@ -26,6 +30,9 @@ export function useTheme(setting: string | null, preview: CssVar[] | null): void
     ipc
       .themeTokens(resolveThemeId(setting, prefersDark))
       .then((vars) => applyTokens(document.documentElement.style, vars))
-      .catch(() => undefined); // Base CSS keeps a readable fallback palette.
+      .catch(() => undefined) // Base CSS keeps a readable fallback palette.
+      .finally(() => setApplied(true));
   }, [setting, prefersDark, preview]);
+
+  return applied;
 }

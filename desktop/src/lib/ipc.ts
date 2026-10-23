@@ -42,6 +42,8 @@ export const setTheme = (id: string) => invoke<void>("set_theme", { id });
 export const setPopupHotkey = (hotkey: string | null) => invoke<string | null>("set_popup_hotkey", { hotkey });
 export const startupNotice = () => invoke<Notice | null>("startup_notice");
 export const closeWindow = () => invoke<void>("close_window");
+/** Popup only: shows the (hidden) popup once it has painted. */
+export const popupReady = () => invoke<void>("popup_ready");
 
 /** Failures from a group run that happen after `runGroup` returned. Returns an unsubscribe. */
 export function onLaunchFailed(handler: (failure: StepFailure) => void): Promise<() => void> {

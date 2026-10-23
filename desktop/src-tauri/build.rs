@@ -21,6 +21,7 @@ const COMMANDS: &[&str] = &[
     "startup_notice",
     "set_popup_hotkey",
     "close_window",
+    "popup_ready",
 ];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

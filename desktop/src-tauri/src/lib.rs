@@ -58,7 +58,8 @@ pub fn run() -> anyhow::Result<()> {
             commands::set_theme,
             commands::startup_notice,
             commands::set_popup_hotkey,
-            commands::close_window
+            commands::close_window,
+            commands::popup_ready
         ])
         .setup(|app| {
             let dir = app

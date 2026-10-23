@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Launcher } from "./components/Launcher";
 import * as ipc from "./lib/ipc";
@@ -16,7 +16,8 @@ export function Popup() {
   const [groups, setGroups] = useState<GroupView[]>([]);
   const [theme, setTheme] = useState<string | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
-  useTheme(theme, null);
+  const themed = useTheme(theme, null);
+  const shown = useRef(false);
 
   const fail = useCallback((e: unknown) => {
     const err = ipc.asCommandError(e);
@@ -36,6 +37,14 @@ export function Popup() {
     });
     ipc.listGroups().then(setGroups, fail);
   }, [fail]);
+
+  // Rust keeps the window hidden until this, so the first frame the user sees is complete.
+  // Called straight from the effect: a hidden WebKit window never runs animation frames.
+  useEffect(() => {
+    if (!themed || apps === null || shown.current) return;
+    shown.current = true;
+    void ipc.popupReady().catch(fail);
+  }, [themed, apps, fail]);
 
   const launchApp = (app: AppView) => ipc.launchApp(app.id).then(close, fail);
 
