@@ -16,6 +16,7 @@ const COMMANDS: &[&str] = &[
     "save_group",
     "delete_group",
     "run_group",
+    "close_group",
     "get_settings",
     "set_theme",
     "startup_notice",

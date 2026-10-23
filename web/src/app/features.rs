@@ -10,8 +10,8 @@ pub(crate) async fn page() -> Result<impl View> {
         <h1 class="text-3xl font-bold">"Features"</h1>
         <p class="mt-3 text-muted-foreground">
             "Muster is in early development. Version 0.1.0 is an unsigned preview build: finding \
-             apps, search, launching, groups, and theme import and export work. Closing groups, \
-             the theme editor and update checks are still to come."
+             apps, search, launching, groups, and theme import and export work. The theme editor \
+             and update checks are still to come."
         </p>
         <div class="mt-8 grid gap-8">
             feature(
@@ -21,7 +21,6 @@ pub(crate) async fn page() -> Result<impl View> {
                     "Set the launch order and an optional delay before each app.",
                     "Give each app its own arguments and working folder inside a group.",
                     "Close every app in a group again with one action.",
-                    "A global keyboard shortcut per group.",
                 ]
             )
             feature(

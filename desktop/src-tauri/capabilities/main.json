@@ -24,6 +24,7 @@
     "allow-save-group",
     "allow-delete-group",
     "allow-run-group",
+    "allow-close-group",
     "allow-get-settings",
     "allow-set-theme",
     "allow-set-popup-hotkey",

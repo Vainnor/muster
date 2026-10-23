@@ -2,20 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-import type {
-  AppInfo,
-  AppView,
-  CommandError,
-  CssVar,
-  GroupDraft,
-  GroupView,
-  LaunchTarget,
-  Notice,
-  Settings,
-  StepFailure,
-  ThemeInfo,
-  ThemePreview,
-} from "./types";
+import type { AppInfo, AppView, ClosedEntry, CommandError, CssVar, GroupDraft, GroupView, LaunchTarget, Notice, Settings, StepFailure, ThemeInfo, ThemePreview } from "./types";
 
 export const appInfo = () => invoke<AppInfo>("app_info");
 export const listThemes = () => invoke<ThemeInfo[]>("list_themes");
@@ -35,6 +22,8 @@ export const listGroups = () => invoke<GroupView[]>("list_groups");
 export const saveGroup = (group: GroupDraft) => invoke<string>("save_group", { group });
 export const deleteGroup = (id: string) => invoke<void>("delete_group", { id });
 export const runGroup = (id: string) => invoke<StepFailure[]>("run_group", { id });
+/** Resolves once the apps quit, or after the force-quit question Rust asks when some do not. */
+export const closeGroup = (id: string) => invoke<ClosedEntry[]>("close_group", { id });
 
 export const getSettings = () => invoke<Settings>("get_settings");
 export const setTheme = (id: string) => invoke<void>("set_theme", { id });

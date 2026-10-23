@@ -7,7 +7,7 @@ website (Topcoat). All logic lives in `muster-core`; everything else is a thin l
 
 | Path | Crate | What it is |
 | --- | --- | --- |
-| `crates/muster-core` | `muster-core` | Model, launch validation and planning, groups, config store, theme parsing, app detection, hotkey validation and ownership, the start-on-login entries. No UI, Tauri, Topcoat or async runtime. |
+| `crates/muster-core` | `muster-core` | Model, launch validation and planning, groups, config store, theme parsing, app detection, hotkey validation and ownership, which running processes closing a group quits, the start-on-login entries. No UI, Tauri, Topcoat or async runtime. |
 | `crates/muster-ui` | `muster-ui` | Turns a validated theme into `--mu-*` CSS custom properties. Shared by the desktop UI and the website. |
 | `desktop/src-tauri` | `muster-desktop` (bin `muster`) | Tauri shell: main window, popup launcher, tray, single instance, start on login, global hotkeys, and the commands the UI may call. |
 | `desktop/src` | (npm) | React + TypeScript UI, built by Vite into `desktop/dist`, which Tauri embeds. |
@@ -65,6 +65,11 @@ each time, so it holds no webview while closed. On Wayland the plugin cannot gra
 Muster registers nothing and the user binds `muster --popup` in their compositor. The goal is that an idle Muster in the tray
 holds no webview processes (`.claude/rules/performance.md`).
 
+Closing a group (`processes.rs`) lists the user's processes, lets `close::plan_close` match
+them to the group's entries, asks the matches to quit, and looks again every half second for
+up to 5 seconds. What is left is offered for force quitting in a native dialog, and listed
+and matched once more before anything is killed. Nothing runs until the user presses Close.
+
 A group can have its own hotkey too. `Library::hotkeys` lists every hotkey and what it does
 (open the popup, run a group), and `hotkeys::sync` makes the OS registrations match after each
 change and at startup. A hotkey change is tried on a copy of the library, then registered,
@@ -113,6 +118,9 @@ the only source.
 | `tauri` 2 (`tray-icon`) | desktop | The shell. |
 | `tauri-plugin-single-instance` | desktop | A second launch focuses the running app instead of starting another. |
 | `windows-registry` | desktop (Windows) | Writes the start-on-login `Run` value. Microsoft's safe registry wrapper; `tauri-plugin-autostart` was dropped because it writes the program path unquoted on every OS. |
+| `sysinfo` (`system` only) | desktop (Windows, macOS) | Lists processes with their program, arguments, parent and owner when the user closes a group. Reading another process's command line on Windows takes memory reads we would otherwise write as `unsafe`. No network, no threads, nothing at load. Linux reads `/proc` directly instead, since sysinfo raises `RLIMIT_NOFILE` for the whole process and every app Muster starts would inherit it. |
+| `rustix` (`process`) | desktop (Unix) | `kill(2)` without `unsafe`, for closing a group. Already in the tree through `tempfile`. |
+| `objc2`, `objc2-app-kit` | desktop (macOS) | `NSRunningApplication::terminate`, the same Quit an app gets from its menu, so it can ask about unsaved work; a signal skips that. Already in the tree through Tauri. |
 | `tauri-plugin-global-shortcut` | desktop | The popup and group hotkeys, registered from Rust. |
 | `tauri-plugin-dialog` (pinned `=2.8.1`) | desktop | The native approval dialog, shown from Rust so the webview cannot answer it. No JS permission. Brings `rfd` and, as a type dependency only, `tauri-plugin-fs`, which is never registered. |
 | `tauri-plugin-updater` | desktop, `updater` feature only | Signed update check, compiled out by default. Its default `zip` feature is off: it only handles legacy zipped Windows updates and pulls in zip 4.x with open advisories. |

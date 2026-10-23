@@ -41,6 +41,21 @@ tauri-plugin-updater = { version = "2.14", optional = true, default-features = f
 # The start-on-login Run value (src/autostart.rs). Microsoft's safe wrapper over the registry.
 windows-registry = "0.6"
 
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+# Lists processes (pid, exe, arguments, owner) when the user closes a group (src/processes.rs).
+# Linux reads /proc instead: sysinfo raises RLIMIT_NOFILE for the whole process there, and
+# every app Muster starts afterwards would inherit it.
+sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
+
+[target.'cfg(unix)'.dependencies]
+# Safe kill(2) for closing a group.
+rustix = { version = "1.1", default-features = false, features = ["std", "process"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# A polite quit for apps (the same as choosing Quit), which a signal is not.
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "libc", "NSRunningApplication"] }
+
 [build-dependencies]
 tauri-build = { version = "2.7", features = [] }
 

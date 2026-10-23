@@ -70,6 +70,15 @@ export interface GroupDraft {
   entries: GroupEntry[];
 }
 
+/** processes::Outcome: what closing a group did for one entry. */
+export type CloseOutcome = "closed" | "still_running" | "not_running" | "link" | "too_broad";
+
+/** processes::Closed */
+export interface ClosedEntry {
+  app: string;
+  outcome: CloseOutcome;
+}
+
 /** commands::StepFailure and the `launch-failed` event payload. */
 export interface StepFailure {
   app: string;

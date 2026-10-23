@@ -51,6 +51,8 @@ function backend(runGroup: () => unknown) {
           return [group];
         case "run_group":
           return runGroup();
+        case "close_group":
+          return [{ app: "m:backup", outcome: "still_running" }];
         case "launch_app":
           throw { code: "invalid_target", message: "That file or app does not exist." };
         default:
@@ -63,6 +65,17 @@ function backend(runGroup: () => unknown) {
 }
 
 describe("App", () => {
+  it("closes a group from the group list and says what is still running", async () => {
+    const calls = backend(() => []);
+    const { App } = await import("./App");
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Groups" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toBe("Still running: Backup."));
+    expect(screen.getByRole("status").className).toContain("status--error");
+    expect(calls).toContain("close_group");
+  });
+
   it("runs a group through one command; approval happens in Rust", async () => {
     const calls = backend(() => []);
     const { App } = await import("./App");
