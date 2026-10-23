@@ -17,10 +17,6 @@ pub(crate) async fn page() -> Result<impl View> {
                 "Last updated "
                 (LEGAL_UPDATED)
             </p>
-            <p class="rounded-md border border-border p-3 text-sm">
-                "Draft. This is a plain-language template, not legal advice, and has not been \
-                 reviewed by a lawyer."
-            </p>
 
             <h2 class="text-xl font-semibold pt-4">"The software"</h2>
             <p>
