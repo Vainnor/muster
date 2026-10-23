@@ -134,14 +134,16 @@ pub fn run() -> anyhow::Result<()> {
         })
         .build(tauri::generate_context!())?;
 
-    app.run(|_app, event| {
+    app.run(|app, event| {
         // Closing the window destroys it (and its webview) but keeps Muster in the tray.
         // Quit from the tray calls `exit(0)`, which arrives here with a code and is allowed.
-        if let RunEvent::ExitRequested {
-            code: None, api, ..
-        } = event
-        {
-            api.prevent_exit();
+        match event {
+            RunEvent::ExitRequested {
+                code: None, api, ..
+            } => api.prevent_exit(),
+            // After an installed update, this starts the new version.
+            RunEvent::Exit => updates::restart_if_updated(app),
+            _ => {}
         }
     });
     Ok(())

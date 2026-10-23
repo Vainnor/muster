@@ -203,7 +203,11 @@ pub(crate) async fn confirm_update<R: Runtime>(
     app: &AppHandle<R>,
     version: &str,
 ) -> Result<bool, CommandError> {
-    if ASKING.swap(true, Ordering::AcqRel) {
+    let cooling = DECLINED_AT
+        .lock()
+        .map_err(|_| CommandError::INTERNAL)?
+        .is_some_and(|at| at.elapsed() < COOL_DOWN);
+    if cooling || ASKING.swap(true, Ordering::AcqRel) {
         return Ok(false);
     }
     let _asking = Asking;
@@ -213,7 +217,11 @@ pub(crate) async fn confirm_update<R: Runtime>(
         .take(32)
         .collect();
     let text = format!("Install Muster {version}? Muster restarts when it is done.");
-    ask(app, "Install the update?", text, "Not now", "Install").await
+    let install = ask(app, "Install the update?", text, "Not now", "Install").await?;
+    if !install {
+        *DECLINED_AT.lock().map_err(|_| CommandError::INTERNAL)? = Some(Instant::now());
+    }
+    Ok(install)
 }
 
 /// A warning dialog whose first button, `no`, is the default; true only for `yes`. The caller
