@@ -72,5 +72,10 @@ plus the short commit, for example `0.1.0-a1b2c3d`.
 
 A version tag that does not match `Cargo.toml` fails the build. Pull requests that touch the
 site build the image without pushing it. The build job has a read-only token; only the publish
-job, which runs no build code, gets `packages: write`. Nothing deploys the image: the cluster
-pulls a tag (`web/README.md`).
+job, which runs no build code, gets `packages: write`.
+
+After a `main` push, the deploy job sends a `repository_dispatch` of type `muster-web-image` to
+`Vainnor/homelab-infra` with `image`, `tag` (`0.1.0-a1b2c3d`) and `sha`; homelab-infra does
+the rollout. It needs the `HOMELAB_DEPLOY_TOKEN` secret, a fine-grained token scoped to
+homelab-infra only with Contents: read and write. Without it, the image still pushes and the
+deploy job fails with that instruction. A version tag never dispatches.

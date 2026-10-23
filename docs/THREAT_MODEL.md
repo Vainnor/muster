@@ -120,7 +120,9 @@ plus `nosniff`, `no-referrer`, COOP/CORP `same-origin`, HSTS and `frame-ancestor
 `permissions:`, and container base images are pinned by digest. Release artifacts get a
 `SHA256SUMS.txt`. Jobs that run build code have read-only tokens; the jobs that write (the
 release draft, the website image push to ghcr.io) only download what a build job produced and
-upload it.
+upload it. The website deploy job holds the one stored secret, `HOMELAB_DEPLOY_TOKEN`, which can
+write only to `Vainnor/homelab-infra`; the job runs no checkout or build code and sends only the
+image name, tag and commit.
 
 ## Accepted risks
 

@@ -1,7 +1,7 @@
 name: Website image
 
-# Every push to main builds and pushes the website image; so does a version tag. Pull requests
-# that can reach the site only build it. Deploying is downstream: the cluster pulls a tag.
+# Every push to main builds and pushes the website image, then tells homelab-infra to deploy
+# it. A version tag builds and pushes only. Pull requests that can reach the site only build.
 on:
   push:
     branches: [main]
@@ -109,3 +109,35 @@ jobs:
           digest="$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$VERSION")"
           echo "Pushed $digest as: ${tags[*]}" | tee -a "$GITHUB_STEP_SUMMARY"
           docker logout ghcr.io
+
+  # Tells the GitOps repo a new main image exists; homelab-infra decides how to roll it out. A
+  # version tag builds and pushes but does not deploy: deploying a release is a deliberate act in
+  # homelab-infra.
+  deploy:
+    name: Dispatch the deploy
+    needs: [image, publish]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - env:
+          # Fine-grained PAT (or GitHub App token) scoped to Vainnor/homelab-infra only, with
+          # Contents: read and write, the narrowest permission that can send a
+          # repository_dispatch. It cannot touch any other repository.
+          GH_TOKEN: ${{ secrets.HOMELAB_DEPLOY_TOKEN }}
+          TAG: ${{ needs.image.outputs.version }}
+        run: |
+          set -euo pipefail
+          # An unset secret expands to an empty string, and gh then fails with a message that
+          # points at the env block instead of the missing secret.
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::HOMELAB_DEPLOY_TOKEN is not set, so the deploy was not dispatched. The image was built and pushed; only the GitOps trigger was skipped. Create a fine-grained PAT scoped to Vainnor/homelab-infra with Contents: read and write, then: gh secret set HOMELAB_DEPLOY_TOKEN --repo Vainnor/muster"
+            exit 1
+          fi
+          gh api --method POST repos/Vainnor/homelab-infra/dispatches \
+            -f event_type=muster-web-image \
+            -F "client_payload[image]=ghcr.io/vainnor/muster-web" \
+            -F "client_payload[tag]=$TAG" \
+            -F "client_payload[sha]=$GITHUB_SHA"
+          echo "Dispatched muster-web-image -> $TAG" | tee -a "$GITHUB_STEP_SUMMARY"
