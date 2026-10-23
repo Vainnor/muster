@@ -13,7 +13,7 @@ The checklist is `security.md` → "Webview and IPC". This file is how the shell
 - A new command: write it in `commands.rs`, add it to `generate_handler!`, to
   `AppManifest::commands` in `build.rs`, and grant `allow-<name>` in
   `capabilities/main.json`. All four, or it is either unreachable or ungated.
-- Plugins controlled from Rust (autostart, global shortcut) get **no** JS permission.
+- Plugins controlled from Rust (global shortcut, dialog) get **no** JS permission.
 
 ## Capabilities and config
 - One capability file per window kind. `main.json` lists only the app's own `allow-*`
@@ -40,7 +40,7 @@ The checklist is `security.md` → "Webview and IPC". This file is how the shell
   invisible, so the app must stay usable with the window alone. Global shortcuts do not work on
   Wayland through the plugin; feature-detect and say so in the UI.
 - **macOS**: closing the last window must not quit (handled by `ExitRequested`). Unsigned builds
-  trip Gatekeeper (`docs/RELEASING.md`). Autostart uses a LaunchAgent; do not use AppleScript.
+  trip Gatekeeper (`docs/RELEASING.md`). Start on login uses a LaunchAgent; do not use AppleScript.
 - **Windows**: WebView2 is required (the installer bootstraps it). Unsigned builds show
   SmartScreen. `windows_subsystem = "windows"` in release so no console opens. Paths are
   case-insensitive and may use `\\?\`; compare with `dunce`-style normalization.

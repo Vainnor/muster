@@ -20,6 +20,7 @@ const COMMANDS: &[&str] = &[
     "set_theme",
     "startup_notice",
     "set_popup_hotkey",
+    "set_start_on_login",
     "close_window",
     "popup_ready",
 ];

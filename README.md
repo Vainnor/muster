@@ -21,7 +21,8 @@ Working now:
 - Before it runs something you added by hand, or an app with arguments or a folder you set,
   Muster shows the exact command line in a system dialog and asks you first. It asks again if
   that command line changes.
-- Tray icon; closing the window keeps Muster in the tray.
+- Tray icon; closing the window keeps Muster in the tray. Optional start on login, into the
+  tray.
 - Themes: light, dark or follow your system, presets (Nord, Gruvbox, Catppuccin, Solarized,
   High Contrast, Vainnor, Vainnor Ember, Prism), and theme files you import or export, with a
   live preview and a warning when text would be hard to read.
@@ -31,7 +32,7 @@ Working now:
 
 Planned:
 
-- Close a whole group again; a global hotkey per group; start on login (optional).
+- Close a whole group again; a global hotkey per group.
 - A theme editor.
 - An update check that runs only when you press it.
 

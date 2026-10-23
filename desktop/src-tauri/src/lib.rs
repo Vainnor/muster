@@ -28,7 +28,6 @@ pub fn run() -> anyhow::Result<()> {
                 window::show_or_log(app);
             }
         }))
-        .plugin(autostart::plugin())
         .plugin(hotkeys::plugin())
         // Rust-only: the capability grants no `dialog:*` permission, so JS cannot open one.
         .plugin(tauri_plugin_dialog::init());
@@ -58,6 +57,7 @@ pub fn run() -> anyhow::Result<()> {
             commands::set_theme,
             commands::startup_notice,
             commands::set_popup_hotkey,
+            commands::set_start_on_login,
             commands::close_window,
             commands::popup_ready
         ])
@@ -81,9 +81,11 @@ pub fn run() -> anyhow::Result<()> {
             if let Err(e) = hotkeys::set_popup(app.handle(), hotkey.as_ref()) {
                 diag::report("registering the popup hotkey", e.as_ref());
             }
+            // Started by the login entry, Muster stays in the tray until the user asks.
+            let at_login = std::env::args_os().any(|a| a == autostart::FLAG);
             if std::env::args_os().any(|a| a == popup::FLAG) {
                 popup::toggle(app.handle())?;
-            } else {
+            } else if !at_login {
                 window::show(app.handle())?;
             }
             Ok(())

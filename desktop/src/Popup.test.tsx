@@ -37,7 +37,7 @@ async function setup(launch: () => unknown, delays = { list: 20, theme: 60 }) {
     );
   mockIPC((cmd) => {
     calls.push(cmd);
-    if (cmd === "get_settings") return { theme: "system", popup_hotkey: "Alt+Space", popup_hotkey_active: true, wayland: false };
+    if (cmd === "get_settings") return { theme: "system", popup_hotkey: "Alt+Space", popup_hotkey_active: true, wayland: false, start_on_login: false };
     if (cmd === "list_apps") return late(cmd, [app], delays.list);
     if (cmd === "list_groups") return [];
     if (cmd === "theme_tokens") return late(cmd, [], delays.theme);
