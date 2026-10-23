@@ -2,7 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-import type { AppInfo, AppView, ClosedEntry, CommandError, CssVar, GroupDraft, GroupView, LaunchTarget, Notice, Settings, StepFailure, ThemeInfo, ThemePreview, UpdateView } from "./types";
+import type { AppInfo, AppView, ClosedEntry, CommandError, CssVar, GroupDraft, GroupView, LaunchTarget, Notice, Picked, PickKind, Settings, StepFailure, ThemeInfo, ThemePreview, UpdateView } from "./types";
 
 export const appInfo = () => invoke<AppInfo>("app_info");
 export const listThemes = () => invoke<ThemeInfo[]>("list_themes");
@@ -16,6 +16,7 @@ export const listApps = () => invoke<AppView[]>("list_apps");
 export const refreshApps = () => invoke<AppView[]>("refresh_apps");
 export const launchApp = (id: string) => invoke<void>("launch_app", { id });
 export const addApp = (name: string, target: LaunchTarget) => invoke<string>("add_app", { name, target });
+export const pickPath = (kind: PickKind) => invoke<Picked | null>("pick_path", { kind });
 export const removeApp = (id: string) => invoke<void>("remove_app", { id });
 
 export const listGroups = () => invoke<GroupView[]>("list_groups");

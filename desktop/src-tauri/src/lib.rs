@@ -9,6 +9,7 @@ mod commands;
 mod diag;
 mod hotkeys;
 mod launcher;
+mod picker;
 mod popup;
 mod processes;
 mod state;
@@ -69,6 +70,7 @@ pub fn run() -> anyhow::Result<()> {
             commands::refresh_apps,
             commands::launch_app,
             commands::add_app,
+            commands::pick_path,
             commands::remove_app,
             commands::list_groups,
             commands::save_group,

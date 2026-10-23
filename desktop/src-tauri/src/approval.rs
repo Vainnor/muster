@@ -36,13 +36,23 @@ const CANCEL: &str = "Cancel";
 static ASKING: AtomicBool = AtomicBool::new(false);
 static DECLINED_AT: Mutex<Option<Instant>> = Mutex::new(None);
 
-/// True while an approval dialog is open, so the popup does not close when it loses focus.
+/// True while an approval dialog or the file picker is open, so the popup does not close when
+/// it loses focus.
 pub(crate) fn is_asking() -> bool {
     ASKING.load(Ordering::Acquire)
 }
 
-/// Clears [`ASKING`] however `ensure` ends.
-struct Asking;
+/// Clears [`ASKING`] however the dialog that holds it ends.
+pub(crate) struct Asking;
+
+/// Takes the one-dialog slot for a dialog other than approval, such as the file picker, so it
+/// and an approval dialog are never open together.
+pub(crate) fn claim() -> Result<Asking, CommandError> {
+    if ASKING.swap(true, Ordering::AcqRel) {
+        return Err(CommandError::BUSY);
+    }
+    Ok(Asking)
+}
 
 impl Drop for Asking {
     fn drop(&mut self) {

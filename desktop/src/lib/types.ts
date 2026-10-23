@@ -39,6 +39,15 @@ export type LaunchTarget =
   | { kind: "app_bundle"; path: string }
   | { kind: "url"; url: string };
 
+/** picker::PickKind */
+export type PickKind = "program" | "app_bundle" | "folder";
+
+/** picker::Picked */
+export interface Picked {
+  kind: PickKind;
+  path: string;
+}
+
 /** muster_core::groups::GroupEntry (as sent) and commands::GroupEntryView (as received). */
 export interface GroupEntry {
   app: string;
