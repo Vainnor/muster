@@ -30,6 +30,8 @@ pub struct RunningProcess {
     /// Owned by the user running Muster.
     pub mine: bool,
     pub parent: Option<u32>,
+    /// When it started, in the OS's own units; tells a pid the OS has reused apart.
+    pub started: Option<u64>,
 }
 
 /// What closing does for one entry of the group.
@@ -284,6 +286,22 @@ const TOO_BROAD: &[&str] = &[
     "plasmashell",
     "kwin_wayland",
     "kwin_x11",
+    "nohup",
+    "timeout",
+    "setsid",
+    "bwrap",
+    "firejail",
+    "sudo",
+    "doas",
+    "ssh",
+    "tmux",
+    "screen",
+    "steam",
+    "xorg",
+    "xwayland",
+    "pipewire",
+    "wireplumber",
+    "msedgewebview2",
     "finder",
     "dock",
     "loginwindow",
@@ -360,6 +378,7 @@ mod tests {
             args: args.iter().map(|a| (*a).to_owned()).collect(),
             mine: true,
             parent: None,
+            started: None,
         }
     }
 

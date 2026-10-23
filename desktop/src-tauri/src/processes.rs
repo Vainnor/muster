@@ -69,7 +69,11 @@ pub(crate) async fn close<R: Runtime>(
 
     let (first, seen) = look(state, id).await?;
     let asked: HashSet<AppId> = running(&first).collect();
-    let pids: Vec<u32> = first.iter().flat_map(pids_of).collect();
+    let asked_pids: HashSet<u32> = first.iter().flat_map(pids_of).collect();
+    // Helpers were left to close with their main process; if it is gone and they are not,
+    // they may be force quit too.
+    let killable = with_descendants(&asked_pids, &seen);
+    let pids: Vec<u32> = asked_pids.iter().copied().collect();
     blocking(move || {
         for pid in pids {
             if let Err(e) = os::ask_to_quit(pid) {
@@ -79,28 +83,27 @@ pub(crate) async fn close<R: Runtime>(
     })
     .await?;
 
-    // If the group is deleted meanwhile, the last look stands.
+    // If the group is deleted meanwhile, the last look stands and nothing is force quit.
     let mut now = first.clone();
+    let mut gone = false;
     let mut waited = Duration::ZERO;
-    while waited < GRACE && running(&now).any(|a| asked.contains(&a)) {
+    while waited < GRACE && !stubborn(&now, &asked, &killable).is_empty() {
         blocking(|| std::thread::sleep(LOOK_AGAIN)).await?;
         waited += LOOK_AGAIN;
-        match look_again(state, id).await? {
-            Some((entries, _)) => now = entries,
-            None => break,
-        }
+        let Some((entries, _)) = look_again(state, id).await? else {
+            gone = true;
+            break;
+        };
+        now = entries;
     }
 
-    let stubborn: Vec<&EntryClose> = now.iter().filter(|e| asked.contains(&e.app)).collect();
-    let stubborn_pids: HashSet<u32> = stubborn.iter().flat_map(|e| pids_of(e)).collect();
-    if !stubborn_pids.is_empty() {
+    let left = stubborn(&now, &asked, &killable);
+    if !gone && !left.is_empty() {
         let names = {
             let library = state.library()?;
             let mut names: Vec<String> = Vec::new();
-            for entry in &stubborn {
-                let name = library
-                    .find(&entry.app)
-                    .map_or_else(|| entry.app.0.clone(), |e| e.name);
+            for app in now.iter().map(|e| &e.app).filter(|a| left.contains_key(*a)) {
+                let name = library.find(app).map_or_else(|| app.0.clone(), |e| e.name);
                 if !names.contains(&name) {
                     names.push(name);
                 }
@@ -108,14 +111,18 @@ pub(crate) async fn close<R: Runtime>(
             names
         };
         if crate::approval::confirm_force_quit(app, names).await? {
-            // Only processes the user was asked about, still running the same program with the
-            // same arguments as when they were first asked to quit: a pid the OS has given to
-            // something else since, or an entry changed while the dialog was open, is spared.
-            if let Some((_, fresh)) = look_again(state, id).await? {
-                let pids: Vec<u32> = fresh
-                    .values()
-                    .filter(|p| stubborn_pids.contains(&p.pid) && seen.get(&p.pid) == Some(*p))
-                    .map(|p| p.pid)
+            // Matched again against the group as it is now, and limited to processes Muster
+            // asked to quit (or their helpers) that are still the same process: same program,
+            // arguments, owner and start time. A pid the OS has given to something else, or an
+            // entry changed or removed while the dialog was open, is spared.
+            if let Some((entries, fresh)) = look_again(state, id).await? {
+                let pids: Vec<u32> = stubborn(&entries, &asked, &killable)
+                    .into_values()
+                    .flatten()
+                    .filter(|pid| match (seen.get(pid), fresh.get(pid)) {
+                        (Some(before), Some(after)) => same_process(before, after),
+                        _ => false,
+                    })
                     .collect();
                 blocking(move || {
                     for pid in pids {
@@ -133,12 +140,12 @@ pub(crate) async fn close<R: Runtime>(
         }
     }
 
-    let left: HashSet<AppId> = running(&now).collect();
+    let left = stubborn(&now, &asked, &killable);
     Ok(first
         .into_iter()
         .map(|e| Closed {
             outcome: match e.matched {
-                CloseMatch::Running(_) if left.contains(&e.app) => Outcome::StillRunning,
+                CloseMatch::Running(_) if left.contains_key(&e.app) => Outcome::StillRunning,
                 CloseMatch::Running(_) => Outcome::Closed,
                 CloseMatch::NotRunning => Outcome::NotRunning,
                 CloseMatch::Link => Outcome::Link,
@@ -185,6 +192,54 @@ fn running(entries: &[EntryClose]) -> impl Iterator<Item = AppId> + '_ {
         .map(|e| e.app.clone())
 }
 
+/// The processes still running for apps Muster asked to quit, limited to `killable`, by app.
+fn stubborn(
+    entries: &[EntryClose],
+    asked: &HashSet<AppId>,
+    killable: &HashSet<u32>,
+) -> HashMap<AppId, Vec<u32>> {
+    let mut out: HashMap<AppId, Vec<u32>> = HashMap::new();
+    for entry in entries.iter().filter(|e| asked.contains(&e.app)) {
+        let pids: Vec<u32> = pids_of(entry)
+            .into_iter()
+            .filter(|p| killable.contains(p))
+            .collect();
+        if !pids.is_empty() {
+            out.entry(entry.app.clone()).or_default().extend(pids);
+        }
+    }
+    out
+}
+
+/// `pids` and every process below them in `seen`.
+fn with_descendants(pids: &HashSet<u32>, seen: &Seen) -> HashSet<u32> {
+    let mut out = pids.clone();
+    // Each pass adds one generation; a tree deeper than this is not an app and its helpers.
+    for _ in 0..16 {
+        let more: Vec<u32> = seen
+            .values()
+            .filter(|p| {
+                !out.contains(&p.pid) && p.parent.is_some_and(|parent| out.contains(&parent))
+            })
+            .map(|p| p.pid)
+            .collect();
+        if more.is_empty() {
+            break;
+        }
+        out.extend(more);
+    }
+    out
+}
+
+/// The same process, not a new one that got its pid. The parent may differ: a process whose
+/// parent exits is handed to another.
+fn same_process(before: &RunningProcess, after: &RunningProcess) -> bool {
+    before.exe == after.exe
+        && before.args == after.args
+        && before.mine == after.mine
+        && before.started == after.started
+}
+
 fn pids_of(entry: &EntryClose) -> Vec<u32> {
     match &entry.matched {
         CloseMatch::Running(pids) => pids.clone(),
@@ -219,8 +274,8 @@ fn parse_cmdline(raw: &[u8]) -> Vec<String> {
         .collect()
 }
 
-/// The parent pid from `/proc/<pid>/stat`. The command name in parentheses may itself hold
-/// spaces and `)`, so the fields are read after the last `)`.
+/// The parent pid and start time from `/proc/<pid>/stat` (fields 4 and 22). The command name in
+/// parentheses may itself hold spaces and `)`, so the fields are read after the last `)`.
 #[cfg_attr(
     not(target_os = "linux"),
     allow(
@@ -228,9 +283,33 @@ fn parse_cmdline(raw: &[u8]) -> Vec<String> {
         reason = "Linux only; built everywhere so every CI runner tests it"
     )
 )]
-fn parse_parent(stat: &str) -> Option<u32> {
-    let (_, rest) = stat.rsplit_once(')')?;
-    rest.split_whitespace().nth(1)?.parse().ok()
+fn parse_stat(stat: &str) -> (Option<u32>, Option<u64>) {
+    let Some((_, rest)) = stat.rsplit_once(')') else {
+        return (None, None);
+    };
+    let fields: Vec<&str> = rest.split_whitespace().collect();
+    // `rest` starts at field 3.
+    let field = |n: usize| fields.get(n - 3);
+    (
+        field(4).and_then(|f| f.parse().ok()),
+        field(22).and_then(|f| f.parse().ok()),
+    )
+}
+
+/// `/proc/<pid>/exe` of a program replaced on disk since it started (a package upgrade) ends
+/// in ` (deleted)`; the path without it is the program it ran.
+#[cfg_attr(
+    not(target_os = "linux"),
+    allow(
+        dead_code,
+        reason = "Linux only; built everywhere so every CI runner tests it"
+    )
+)]
+fn without_deleted_suffix(exe: std::path::PathBuf) -> std::path::PathBuf {
+    match exe.to_str().and_then(|e| e.strip_suffix(" (deleted)")) {
+        Some(path) => path.into(),
+        None => exe,
+    }
 }
 
 #[cfg(unix)]
@@ -270,18 +349,19 @@ mod os {
     /// user's): neither is one Muster may close.
     fn read(dir: &Path, pid: u32, me: u32) -> Option<RunningProcess> {
         let mine = std::fs::metadata(dir).ok()?.uid() == me;
-        let exe = std::fs::read_link(dir.join("exe")).ok()?;
+        let exe = super::without_deleted_suffix(std::fs::read_link(dir.join("exe")).ok()?);
         let args = super::parse_cmdline(&std::fs::read(dir.join("cmdline")).ok()?);
-        let parent = std::fs::read_to_string(dir.join("stat"))
+        let (parent, started) = std::fs::read_to_string(dir.join("stat"))
             .ok()
             .as_deref()
-            .and_then(super::parse_parent);
+            .map_or((None, None), super::parse_stat);
         Some(RunningProcess {
             pid,
             exe,
             args,
             mine,
             parent,
+            started,
         })
     }
 
@@ -331,6 +411,7 @@ fn list_with_sysinfo() -> anyhow::Result<Vec<RunningProcess>> {
                     .collect(),
                 mine: process.user_id() == Some(&me),
                 parent: process.parent().map(sysinfo::Pid::as_u32),
+                started: Some(process.start_time()),
             })
         })
         .collect())
@@ -440,12 +521,78 @@ mod tests {
     }
 
     #[test]
-    fn reads_the_parent_past_a_name_with_parentheses() {
+    fn reads_parent_and_start_past_a_name_with_parentheses() {
+        let stat = "4242 (Web Content (x)) S 4100 4242 4100 0 -1 4194560 2049 0 0 0 9 3 0 0 \
+                    20 0 31 0 987654 1234567 890";
+        assert_eq!(parse_stat(stat), (Some(4100), Some(987_654)));
+        assert_eq!(parse_stat("4242 (editor"), (None, None));
+    }
+
+    #[test]
+    fn drops_the_deleted_suffix_of_an_upgraded_program() {
         assert_eq!(
-            parse_parent("4242 (Web Content (x)) S 4100 4242 4100 0 -1"),
-            Some(4100)
+            without_deleted_suffix("/usr/lib/editor/editor (deleted)".into()),
+            std::path::PathBuf::from("/usr/lib/editor/editor")
         );
-        assert_eq!(parse_parent("4242 (editor"), None);
+        assert_eq!(
+            without_deleted_suffix("/usr/lib/editor/editor".into()),
+            std::path::PathBuf::from("/usr/lib/editor/editor")
+        );
+    }
+
+    fn seen_process(pid: u32, parent: Option<u32>, started: u64) -> RunningProcess {
+        RunningProcess {
+            pid,
+            exe: "/opt/browser/browser".into(),
+            args: Vec::new(),
+            mine: true,
+            parent,
+            started: Some(started),
+        }
+    }
+
+    #[test]
+    fn helpers_of_an_asked_process_may_be_force_quit() {
+        let seen: Seen = [
+            seen_process(10, Some(1), 5),
+            seen_process(11, Some(10), 6),
+            seen_process(12, Some(11), 7),
+            seen_process(20, Some(1), 8),
+        ]
+        .into_iter()
+        .map(|p| (p.pid, p))
+        .collect();
+        assert_eq!(
+            with_descendants(&HashSet::from([10]), &seen),
+            HashSet::from([10, 11, 12])
+        );
+    }
+
+    #[test]
+    fn a_reused_pid_is_not_the_same_process_but_a_new_parent_is() {
+        let before = seen_process(11, Some(10), 6);
+        assert!(same_process(&before, &seen_process(11, Some(1), 6)));
+        assert!(!same_process(&before, &seen_process(11, Some(10), 99)));
+    }
+
+    #[test]
+    fn only_asked_apps_and_killable_pids_are_stubborn() {
+        let entries = [
+            EntryClose {
+                app: AppId("m:a".into()),
+                matched: CloseMatch::Running(vec![10, 30]),
+            },
+            EntryClose {
+                app: AppId("m:b".into()),
+                matched: CloseMatch::Running(vec![40]),
+            },
+        ];
+        let asked = HashSet::from([AppId("m:a".into())]);
+        let killable = HashSet::from([10, 40]);
+        assert_eq!(
+            stubborn(&entries, &asked, &killable),
+            HashMap::from([(AppId("m:a".into()), vec![10])])
+        );
     }
 
     #[test]

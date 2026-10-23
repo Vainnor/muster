@@ -151,11 +151,16 @@ the user chose; `muster_core::close::plan_close` decides what matches.
   a process can change what it reports, which only lets it avoid being closed or ask to be.
 - Force quitting (`SIGKILL`, `taskkill /F`) happens only after "Force quit" in a native dialog
   from Rust, which names the apps; "Leave running" is the first and default button, as in the
-  approval dialog, and after it the dialog does not come back for 5 seconds. Right before
-  killing, Muster lists again and kills only pids it asked to quit that still run the same
-  program with the same arguments, so a pid the OS has reused, or an entry the webview changed
-  while the dialog was open, is spared. A pid reused in the moment between that listing and
-  the signal is an accepted risk.
+  approval dialog, and after it the dialog does not come back for 5 seconds. Its GTK default
+  button needs the same manual check on each release as the approval dialog's. Right before
+  killing, Muster lists again, matches against the group as it is then, and kills only
+  processes it asked to quit (or their helpers from the first listing) that are still the same
+  process: same program, arguments, owner and start time. A pid the OS has reused, or an entry
+  the webview changed or removed while the dialog was open, is spared; a group deleted
+  meanwhile gets no dialog at all. A pid reused in the moment between that listing and the
+  signal is an accepted risk.
+- Approving a manual target with no arguments also lets closing quit every running copy of
+  that program. The approval dialog asks about running only.
 - One close runs at a time. The process list (arguments included) stays in memory for that
   close only and is never logged or sent to the webview, which gets back one outcome per entry.
 
