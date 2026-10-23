@@ -18,6 +18,8 @@ The checklist is `security.md` → "Webview and IPC". This file is how the shell
 ## Capabilities and config
 - One capability file per window kind. `main.json` lists only the app's own `allow-*`
   permissions; adding `core:*` needs a reason in its `description`.
+- A new capability file is also listed in `app.security.capabilities` in `tauri.conf.json`;
+  a non-empty list enables only the files it names.
 - `app.security.csp` is security config (`security.md`); `freezePrototype: true`;
   `withGlobalTauri: false`; no `dangerousRemoteDomainIpcAccess`, no `assetProtocol` scope.
 - The updater is behind the `updater` cargo feature and `plugins.updater` stays without

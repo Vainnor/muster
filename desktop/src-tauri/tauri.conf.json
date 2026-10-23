@@ -38,7 +38,7 @@
         "frame-ancestors": "'none'"
       },
       "freezePrototype": true,
-      "capabilities": ["main"]
+      "capabilities": ["main", "popup"]
     }
   },
   "bundle": {
