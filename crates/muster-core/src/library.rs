@@ -221,7 +221,7 @@ impl Library {
     }
 
     /// Records that the user approved `targets`. Only the shell calls this, after the user
-    /// pressed OK in a native dialog that listed them; targets no app or group can run are
+    /// pressed Run in a native dialog that listed them; targets no app or group can run are
     /// ignored.
     pub fn approve(&mut self, targets: &[LaunchTarget]) -> Result<()> {
         for target in targets {

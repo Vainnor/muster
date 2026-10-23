@@ -70,8 +70,10 @@ reach the network.
   argument quoted and escaped, and links in the parsed form the opener receives (an IDN host
   as punycode) (`launch::describe`). Each dialog is at most 1 KiB of text; a longer list is
   split across dialogs and a single longer target is refused.
-- "Don't run" is the first button, the default on macOS and Windows, so a stray Return key
-  cannot approve; only the "Run" button does. GTK's default button is not verified. After the
+- "Don't run" is the first button, the default on macOS (a `CFUserNotification` alert) and
+  Windows (task dialog), so a stray Return key cannot approve; only the "Run" button does.
+  Escape and closing map to Cancel on Windows and GTK. On macOS the system decides what Escape
+  does, and GTK's default button is not verified; both need a manual check on each release. After the
   user declines, Muster refuses new approval requests for 5 seconds, and only one dialog is
   open at a time.
 - Overrides on detected apps need approval too: arguments for a detected shell or PowerShell
@@ -101,8 +103,10 @@ file, bundle or shortcut into a scanned folder, so detection treats them as untr
 - `Info.plist` is parsed by the `plist` crate; `CFBundleIconFile` cannot be a path. The parser
   reads through a 1 MiB read budget (`PLIST_READ_BUDGET`): a binary plist can point at one
   object many times, so a file of a few hundred bytes would otherwise expand exponentially.
-  The parsed value is dropped without recursion (`drop_flat`), since a file under the cap can
-  nest about 40,000 levels and recursive drop would overflow the scan thread's stack.
+  The plist crate drops nested values recursively, including inside `from_reader` when a parse
+  fails, and a file under the cap can nest up to 131,072 levels (ASCII format). So each parse
+  runs on its own thread with a 64 MiB stack (`PARSE_STACK`), which tests show holds the
+  deepest such file in a debug build.
 - A detected app is validated by `launch::plan` each time it runs; a pinned copy in the config
   is not validated when it is pinned.
 

@@ -10,7 +10,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use super::{DetectedApp, MAX_APPS, Scan, clean_name, read_small, walk};
+use super::{DetectedApp, MAX_APPS, MAX_ENTRY_BYTES, Scan, clean_name, read_small, walk};
 use crate::launch::LaunchTarget;
 
 /// Bundles sit at the top of a root or one folder down; nothing deeper is an installed app.
@@ -141,9 +141,33 @@ pub struct InfoPlist {
     pub listed: bool,
 }
 
-/// Parses an XML or binary `Info.plist`. `None` if it is not a plist dictionary.
+/// Stack for the parsing thread. Nesting is bounded by size: the ASCII plist format nests at
+/// 2 bytes per level, so a file within [`MAX_ENTRY_BYTES`] has at most 131,072 levels. The
+/// plist crate builds iteratively but drops recursively, also inside `from_reader` when a
+/// parse fails after a deep subtree closed, and one level costs on the order of 100 bytes of
+/// stack (more in debug builds). 64 MiB covers that with room to spare; the OS commits stack
+/// pages only as they are touched, and they go away when the thread ends.
+const PARSE_STACK: usize = 64 * 1024 * 1024;
+
+/// Parses an XML or binary `Info.plist`. `None` if it is not a plist dictionary, is larger
+/// than [`MAX_ENTRY_BYTES`], or could not be parsed.
 #[must_use]
 pub fn parse_info_plist(bytes: &[u8]) -> Option<InfoPlist> {
+    if bytes.len() as u64 > MAX_ENTRY_BYTES {
+        return None;
+    }
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .name("muster-plist".into())
+            .stack_size(PARSE_STACK)
+            .spawn_scoped(scope, || parse_here(bytes))
+            .ok()?
+            .join()
+            .ok()?
+    })
+}
+
+fn parse_here(bytes: &[u8]) -> Option<InfoPlist> {
     let reader = ReadBudget {
         inner: std::io::Cursor::new(bytes),
         left: PLIST_READ_BUDGET,
@@ -154,9 +178,7 @@ pub fn parse_info_plist(bytes: &[u8]) -> Option<InfoPlist> {
     info
 }
 
-/// Drops a parsed plist without recursion. Dropping a `plist::Value` recurses once per level,
-/// and a 240 KB binary plist can nest about 40,000 arrays deep, which overflows a 2 MiB
-/// thread stack (the scan runs on one).
+/// Drops a parsed plist without recursion, so a deep but valid file costs no stack.
 fn drop_flat(value: plist::Value) {
     let mut pending = vec![value];
     while let Some(value) = pending.pop() {
@@ -252,31 +274,41 @@ mod tests {
     }
 
     /// A binary plist whose dictionary holds a valid identifier and `depth` distinct arrays,
-    /// each holding only the next: deep nesting within the 256 KiB cap.
-    fn deep_chain(depth: u16) -> Vec<u8> {
+    /// each holding only the next: deep nesting within the 256 KiB cap. With `fail_after`, the
+    /// dictionary gets one more value, after the chain, with an unused type marker, so the
+    /// parse fails once the deep chain is complete.
+    fn deep_chain(depth: u16, fail_after: bool) -> Vec<u8> {
         fn ascii(s: &str) -> Vec<u8> {
             let mut out = vec![0x5f, 0x10, u8::try_from(s.len()).unwrap()];
             out.extend_from_slice(s.as_bytes());
             out
         }
-        let r = |i: u16| i.to_be_bytes();
-        let mut objects: Vec<Vec<u8>> = vec![
-            [
-                vec![0xd2],
-                r(1).to_vec(),
-                r(2).to_vec(),
-                r(3).to_vec(),
-                r(4).to_vec(),
-            ]
-            .concat(),
-            ascii("CFBundleIdentifier"),
-            vec![0x51, b'x'],
-            ascii("com.example.deep"),
-        ];
+        let r = |i: u16| i.to_be_bytes().to_vec();
+        let keys: u16 = if fail_after { 3 } else { 2 };
+        let first_value = 1 + keys;
+        let chain = first_value + 1;
+        let bad = chain + depth + 1;
+        let mut dict = vec![0xd0 | u8::try_from(keys).unwrap()];
+        for k in 0..keys {
+            dict.extend(r(1 + k));
+        }
+        dict.extend(r(first_value));
+        dict.extend(r(chain));
+        if fail_after {
+            dict.extend(r(bad));
+        }
+        let mut objects = vec![dict, ascii("CFBundleIdentifier"), vec![0x51, b'x']];
+        if fail_after {
+            objects.push(vec![0x51, b'y']);
+        }
+        objects.push(ascii("com.example.deep"));
         for i in 0..depth {
-            objects.push([vec![0xa1], r(5 + i + 1).to_vec()].concat());
+            objects.push([vec![0xa1], r(chain + i + 1)].concat());
         }
         objects.push(vec![0x10, 0]);
+        if fail_after {
+            objects.push(vec![0x70]);
+        }
         let mut file = b"bplist00".to_vec();
         let mut offsets = Vec::new();
         for object in &objects {
@@ -297,19 +329,42 @@ mod tests {
 
     #[test]
     fn deep_nesting_does_not_overflow_the_scan_threads_stack() {
-        let bytes = deep_chain(40_000);
+        let bytes = deep_chain(40_000, false);
         assert!(bytes.len() < 256 * 1024);
-        // The scan runs on a blocking-pool thread with a 2 MiB stack.
-        let info = std::thread::Builder::new()
-            .stack_size(2 * 1024 * 1024)
-            .spawn(move || parse_info_plist(&bytes))
-            .unwrap()
-            .join()
-            .unwrap();
+        let info = on_small_stack(move || parse_info_plist(&bytes));
         assert_eq!(
             info.unwrap().identifier.as_deref(),
             Some("com.example.deep")
         );
+    }
+
+    /// Runs `f` on a thread with the 2 MiB stack the scan's blocking-pool thread has.
+    fn on_small_stack<T: Send>(f: impl FnOnce() -> T + Send) -> T {
+        std::thread::scope(|s| {
+            std::thread::Builder::new()
+                .stack_size(2 * 1024 * 1024)
+                .spawn_scoped(s, f)
+                .unwrap()
+                .join()
+                .unwrap()
+        })
+    }
+
+    #[test]
+    fn a_parse_that_fails_after_a_deep_subtree_does_not_overflow() {
+        let bytes = deep_chain(40_000, true);
+        assert!(bytes.len() < 256 * 1024);
+        assert_eq!(on_small_stack(move || parse_info_plist(&bytes)), None);
+    }
+
+    #[test]
+    fn the_deepest_ascii_plist_within_the_cap_does_not_overflow() {
+        let half = 128 * 1024 - 4;
+        let mut bytes = "(".repeat(half).into_bytes();
+        bytes.extend(std::iter::repeat_n(b')', half));
+        bytes.extend_from_slice(b" ?");
+        assert!(bytes.len() as u64 <= MAX_ENTRY_BYTES);
+        assert_eq!(on_small_stack(move || parse_info_plist(&bytes)), None);
     }
 
     #[test]
