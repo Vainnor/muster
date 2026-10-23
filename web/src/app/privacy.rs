@@ -34,6 +34,9 @@ pub(crate) async fn page() -> Result<impl View> {
                     "It works without an internet connection and makes no network requests at all. If a check for new versions is added later, it will run only when you ask, and this page will say so before it ships."
                 </li>
                 <li>
+                    "The window is drawn by your system's own web view: WebKit on macOS, WebView2 on Windows, WebKitGTK on Linux. On Windows, Muster turns off Microsoft SmartScreen in it, so the pages it shows are not sent to Microsoft for checking. Your system keeps the web view up to date, not Muster."
+                </li>
+                <li>
                     "Your apps, groups, themes, settings and the programs you approved to run are saved in a \
                      file on your own computer. They are never uploaded."
                 </li>
