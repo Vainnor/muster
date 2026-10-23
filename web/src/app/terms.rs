@@ -35,9 +35,9 @@ pub(crate) async fn page() -> Result<impl View> {
                 "Muster starts programs, scripts and links that you choose. You are responsible for what you add to it and run with it. Muster never asks for administrator rights."
             </p>
 
-            <h2 class="text-xl font-semibold pt-4">"Unsigned preview builds"</h2>
+            <h2 class="text-xl font-semibold pt-4">"Unsigned builds"</h2>
             <p>
-                "Early builds are not code-signed. Download them only from the official GitHub releases page and compare the published SHA-256 checksums."
+                "Muster's installers are not code-signed. Download them only from the official GitHub releases page and compare the published SHA-256 checksums."
             </p>
 
             <h2 class="text-xl font-semibold pt-4">"This website"</h2>

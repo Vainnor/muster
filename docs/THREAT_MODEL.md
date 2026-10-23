@@ -267,7 +267,7 @@ image name, tag and commit.
 
 ## Accepted risks
 
-- Builds are unsigned for now, so the OS cannot vouch for the publisher. Checksums cover
+- Builds are unsigned, so the OS cannot vouch for the publisher. Checksums cover
   tampering in transit only if the user checks them (`docs/RELEASING.md`).
 - Muster runs whatever the user tells it to. Protecting the user from a program they chose to add
   is out of scope; the approval dialog for manual entries and overrides is the only speed bump.

@@ -4,7 +4,7 @@ A small, fast desktop app launcher for Windows, macOS and Linux. Muster finds th
 machine and lets you launch them one at a time, or in **groups**: put your editor, terminal and
 browser in a "Work" group and start all of them with one click.
 
-> **Status: early preview.** Not released yet; builds are unsigned.
+> **Status: 1.0.** The installers are not code-signed; see below.
 
 ## Features
 
@@ -41,8 +41,8 @@ Planned:
 ## Install
 
 Download the build for your OS from
-[Releases](https://github.com/Vainnor/muster/releases/latest). Builds are **not code-signed** yet,
-so Windows SmartScreen and macOS Gatekeeper will warn the first time; see
+[Releases](https://github.com/Vainnor/muster/releases/latest). Builds are **not code-signed**, so
+Windows SmartScreen and macOS Gatekeeper will warn the first time; see
 [docs/RELEASING.md](docs/RELEASING.md#unsigned-builds) for how to open them.
 
 ## Repository layout

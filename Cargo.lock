@@ -2435,7 +2435,7 @@ dependencies = [
 
 [[package]]
 name = "muster-core"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "plist",
  "serde",
@@ -2447,7 +2447,7 @@ dependencies = [
 
 [[package]]
 name = "muster-desktop"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "muster-core",
@@ -2469,14 +2469,14 @@ dependencies = [
 
 [[package]]
 name = "muster-ui"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "muster-core",
 ]
 
 [[package]]
 name = "muster-web"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "http",
  "muster-core",

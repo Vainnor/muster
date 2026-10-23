@@ -28,7 +28,7 @@ copy the files `tauri.conf.json` lists, plus `icon.png`, into `desktop/src-tauri
 
 ## Unsigned builds
 
-Builds are not code-signed or notarized yet, and the release notes say so.
+Builds are not code-signed or notarized, and the release notes say so.
 
 - **macOS**: Gatekeeper reports the app as from an unidentified developer, or as damaged when it
   carries the download quarantine flag. Open it once with right-click → Open, or run
@@ -40,8 +40,9 @@ Verify a download with `sha256sum -c SHA256SUMS.txt --ignore-missing` (macOS:
 `shasum -a 256 -c`).
 
 Signing later needs an Apple Developer ID certificate and notarization credentials, and a
-Windows code-signing certificate. They go in GitHub Actions secrets and are passed to
-`tauri-action` through its documented environment variables; none of it goes in the repository.
+Windows code-signing certificate. They go in GitHub Actions secrets and are passed to the
+`pnpm tauri build` step through Tauri's documented environment variables; none of it goes in
+the repository.
 
 ## Updater
 

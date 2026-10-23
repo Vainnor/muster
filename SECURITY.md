@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Muster is pre-1.0. Only the latest release gets security fixes.
+Only the latest release gets security fixes.
 
 ## Reporting a vulnerability
 
@@ -24,5 +24,6 @@ The design and the threats we defend against are in
 
 ## Release integrity
 
-Each release publishes `SHA256SUMS.txt` beside the artifacts. Builds are not code-signed yet;
-see [docs/RELEASING.md](docs/RELEASING.md).
+Each release publishes `SHA256SUMS.txt` beside the artifacts. The installers are not
+code-signed; see [docs/RELEASING.md](docs/RELEASING.md). Updates installed from Settings are
+signed with the release key and verified before they install.
