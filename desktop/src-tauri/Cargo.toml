@@ -39,7 +39,7 @@ tauri-plugin-updater = { version = "2.14", optional = true, default-features = f
 
 [target.'cfg(windows)'.dependencies]
 # The start-on-login Run value (src/autostart.rs). Microsoft's safe wrapper over the registry.
-windows-registry = "0.6"
+windows-registry = "0.100"
 
 [target.'cfg(any(windows, target_os = "macos"))'.dependencies]
 # Lists processes (pid, exe, arguments, owner) when the user closes a group (src/processes.rs).
