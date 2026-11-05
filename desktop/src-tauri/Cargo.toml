@@ -45,7 +45,7 @@ windows-registry = "0.6"
 # Lists processes (pid, exe, arguments, owner) when the user closes a group (src/processes.rs).
 # Linux reads /proc instead: sysinfo raises RLIMIT_NOFILE for the whole process there, and
 # every app Muster starts afterwards would inherit it.
-sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
+sysinfo = { version = "0.40.1", default-features = false, features = ["system"] }
 
 [target.'cfg(unix)'.dependencies]
 # Safe kill(2) for closing a group.
